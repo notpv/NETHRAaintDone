@@ -1,0 +1,21 @@
+{
+  "model_type": "TensorFlow/Keras Neural Network",
+  "model_file": "nethra_neural_network.h5",
+  "scaler_file": "nethra_scaler.pkl",
+  "input_features": 6,
+  "feature_names": [
+    "avg_pressure",
+    "avg_swipe_velocity",
+    "avg_swipe_duration",
+    "accel_stability",
+    "gyro_stability",
+    "touch_frequency"
+  ],
+  "output": "Trust probability (0.0-1.0)",
+  "usage": "multiply output by 100 to get trust score 0-100",
+  "threshold_recommendations": {
+    "mirage_trigger": "< 0.4 (40% trust)",
+    "caution_zone": "0.4 - 0.7 (40-70% trust)",
+    "trusted_zone": "> 0.7 (70%+ trust)"
+  }
+}

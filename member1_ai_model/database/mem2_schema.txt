@@ -1,0 +1,271 @@
+-- NETHRA Enhanced Database Schema
+-- Complete database structure with Dynamic Thresholds + Session Management
+-- Version: Final Production Schema for Member 1 & 2 Integration
+-- Date: July 20, 2025
+
+-- ===========================================================================
+-- CORE TABLES (Enhanced with Dynamic Threshold Features)
+-- ===========================================================================
+
+-- Enhanced Users table with dynamic threshold management
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,                    -- User identifier (TEXT format)
+    device_info TEXT,                            -- Device information JSON
+    biometric_data TEXT,                         -- Biometric capabilities JSON
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_login DATETIME,
+    
+    -- Dynamic threshold management fields
+    session_count INTEGER DEFAULT 0,            -- Number of completed sessions
+    avg_trust_score REAL DEFAULT 50.0,          -- User's average trust score
+    trust_score_std REAL DEFAULT 15.0,          -- Standard deviation of trust scores
+    personal_threshold REAL DEFAULT 40.0,       -- Personalized security threshold
+    threshold_last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    -- User categorization for different security rules
+    user_type TEXT DEFAULT 'new',               -- 'new' or 'experienced'
+    threshold_learning_complete BOOLEAN DEFAULT FALSE
+);
+
+-- Enhanced Sessions table with timeout tracking
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    device_info TEXT,
+    trust_index REAL,
+    risk_level TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,  -- For 10-minute timeout
+    expired_at DATETIME,                               -- When session expired
+    termination_reason TEXT,                           -- Why session ended
+    
+    -- Dynamic threshold context for audit trail
+    threshold_used REAL,                               -- Threshold applied at login
+    user_type_at_login TEXT,                          -- User type at time of login
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Enhanced Behavioral Data table with AI model features
+CREATE TABLE IF NOT EXISTS behavioral_data (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Raw behavioral data (JSON format)
+    touch_patterns TEXT,                        -- Raw touch data JSON
+    swipe_patterns TEXT,                        -- Raw swipe data JSON
+    device_motion TEXT,                         -- Raw motion data JSON
+    app_usage TEXT,                             -- App usage data JSON
+    network_info TEXT,                          -- Network information JSON
+    
+    -- Extracted features for AI model (Member 1's 6 features)
+    avg_pressure REAL,                          -- Average touch pressure (0.0-1.0)
+    avg_swipe_velocity REAL,                    -- Average swipe velocity (pixels/second)
+    avg_swipe_duration REAL,                    -- Average swipe duration (seconds)
+    accel_stability REAL,                       -- Accelerometer stability (variance)
+    gyro_stability REAL,                        -- Gyroscope stability (variance)
+    touch_frequency REAL,                       -- Touch frequency (touches per second)
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+);
+
+-- Enhanced Trust Scores table with threshold context
+CREATE TABLE IF NOT EXISTS trust_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    trust_score REAL NOT NULL,                  -- AI-calculated trust score (0-100)
+    risk_level TEXT,                            -- LOW, MEDIUM, HIGH, CRITICAL
+    anomalies TEXT,                             -- JSON array of detected anomalies
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Dynamic threshold context for analysis
+    threshold_used REAL,                        -- What threshold was applied
+    user_type TEXT,                             -- 'new' or 'experienced'
+    threshold_decision TEXT,                    -- 'TRUSTED', 'CAUTION', 'MIRAGE', 'LOCKOUT'
+    was_personalized BOOLEAN DEFAULT FALSE,     -- Was personal threshold used?
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+);
+
+-- Anomalies detection table
+CREATE TABLE IF NOT EXISTS anomalies (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    anomaly_type TEXT,                          -- Type of anomaly detected
+    severity TEXT,                              -- LOW, MEDIUM, HIGH, CRITICAL
+    description TEXT,                           -- Detailed description
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Enhanced Mirage Sessions table with threshold context
+CREATE TABLE IF NOT EXISTS mirage_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    mirage_type TEXT,                           -- Type of mirage interface
+    activated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    duration INTEGER,                           -- Duration in seconds
+    deactivated_at DATETIME,
+    
+    -- Threshold context for mirage activation analysis
+    trigger_trust_score REAL,                  -- Trust score that triggered mirage
+    threshold_used REAL,                       -- Threshold that was violated
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Tamper detection logs
+CREATE TABLE IF NOT EXISTS tamper_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    tamper_type TEXT,                           -- Type of tampering detected
+    detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    details TEXT,                               -- Detailed tamper information
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Enhanced Security Incidents table with session context
+CREATE TABLE IF NOT EXISTS security_incidents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    incident_type TEXT,                         -- Type of security incident
+    severity TEXT,                              -- LOW, MEDIUM, HIGH, CRITICAL
+    description TEXT,                           -- Incident description
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    resolved BOOLEAN DEFAULT FALSE,
+    
+    -- Session and threshold context for incident analysis
+    session_id TEXT,                            -- Associated session if applicable
+    trust_score REAL,                          -- Trust score at time of incident
+    threshold_used REAL,                       -- Threshold that was active
+    
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- ===========================================================================
+-- NEW TABLES (Dynamic Threshold & Session Management Features)
+-- ===========================================================================
+
+-- Threshold calculation history for audit and analysis
+CREATE TABLE IF NOT EXISTS threshold_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    old_threshold REAL,                         -- Previous threshold value
+    new_threshold REAL,                         -- New threshold value
+    avg_score REAL,                             -- Average score used in calculation
+    score_std REAL,                             -- Standard deviation used
+    session_count INTEGER,                      -- Number of sessions at time of calculation
+    calculation_reason TEXT,                    -- 'INITIAL', 'PERIODIC_UPDATE', 'MANUAL'
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+-- Session timeout tracking for monitoring and analytics
+CREATE TABLE IF NOT EXISTS session_timeouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    timeout_reason TEXT,                        -- 'IDLE_TIMEOUT', 'MAX_DURATION', 'MANUAL'
+    idle_minutes INTEGER,                       -- How long session was idle
+    total_duration_minutes INTEGER,             -- Total session duration
+    expired_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+);
+
+-- ===========================================================================
+-- PERFORMANCE INDEXES
+-- ===========================================================================
+
+-- Users table indexes
+CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
+CREATE INDEX IF NOT EXISTS idx_users_session_count ON users(session_count);
+CREATE INDEX IF NOT EXISTS idx_users_threshold_learning ON users(threshold_learning_complete);
+CREATE INDEX IF NOT EXISTS idx_users_last_login ON users(last_login);
+
+-- Sessions table indexes
+CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(is_active);
+CREATE INDEX IF NOT EXISTS idx_sessions_last_activity ON sessions(last_activity);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id_active ON sessions(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_type ON sessions(user_type_at_login);
+CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at);
+
+-- Behavioral data indexes
+CREATE INDEX IF NOT EXISTS idx_behavioral_data_user_id ON behavioral_data(user_id);
+CREATE INDEX IF NOT EXISTS idx_behavioral_data_timestamp ON behavioral_data(timestamp);
+CREATE INDEX IF NOT EXISTS idx_behavioral_data_session ON behavioral_data(session_id);
+CREATE INDEX IF NOT EXISTS idx_behavioral_data_user_timestamp ON behavioral_data(user_id, timestamp);
+
+-- Trust scores indexes
+CREATE INDEX IF NOT EXISTS idx_trust_scores_user_id_timestamp ON trust_scores(user_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_trust_scores_decision ON trust_scores(threshold_decision);
+CREATE INDEX IF NOT EXISTS idx_trust_scores_personalized ON trust_scores(was_personalized);
+CREATE INDEX IF NOT EXISTS idx_trust_scores_session ON trust_scores(session_id);
+
+-- Anomalies indexes
+CREATE INDEX IF NOT EXISTS idx_anomalies_user_id ON anomalies(user_id);
+CREATE INDEX IF NOT EXISTS idx_anomalies_severity ON anomalies(severity);
+CREATE INDEX IF NOT EXISTS idx_anomalies_timestamp ON anomalies(timestamp);
+CREATE INDEX IF NOT EXISTS idx_anomalies_type ON anomalies(anomaly_type);
+
+-- Mirage sessions indexes
+CREATE INDEX IF NOT EXISTS idx_mirage_sessions_user_id ON mirage_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_mirage_sessions_activated ON mirage_sessions(activated_at);
+CREATE INDEX IF NOT EXISTS idx_mirage_sessions_session ON mirage_sessions(session_id);
+
+-- Security incidents indexes
+CREATE INDEX IF NOT EXISTS idx_security_incidents_user_id ON security_incidents(user_id);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_resolved ON security_incidents(resolved);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_severity ON security_incidents(severity);
+CREATE INDEX IF NOT EXISTS idx_security_incidents_timestamp ON security_incidents(timestamp);
+
+-- Threshold history indexes
+CREATE INDEX IF NOT EXISTS idx_threshold_history_user_id ON threshold_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_threshold_history_updated ON threshold_history(updated_at);
+CREATE INDEX IF NOT EXISTS idx_threshold_history_reason ON threshold_history(calculation_reason);
+
+-- Session timeouts indexes
+CREATE INDEX IF NOT EXISTS idx_session_timeouts_user_id ON session_timeouts(user_id);
+CREATE INDEX IF NOT EXISTS idx_session_timeouts_reason ON session_timeouts(timeout_reason);
+CREATE INDEX IF NOT EXISTS idx_session_timeouts_expired ON session_timeouts(expired_at);
+
+-- ===========================================================================
+-- SCHEMA NOTES FOR INTEGRATION
+-- ===========================================================================
+
+/*
+MEMBER 1 (AI Model) INTEGRATION NOTES:
+- AI model receives 6 features from behavioral_data table:
+  1. avg_pressure (Float: 0.0-1.0)
+  2. avg_swipe_velocity (Float: pixels/second, 50-300 typical)
+  3. avg_swipe_duration (Float: seconds, 0.1-2.0 typical)
+  4. accel_stability (Float: accelerometer variance, 0.0-1.0)
+  5. gyro_stability (Float: gyroscope variance, 0.0-0.5)
+  6. touch_frequency (Float: touches per second, 0.5-5.0)
+
+- AI model returns trust_score (0-100 integer)
+- Backend uses dynamic thresholds:
+  * New users: Fixed threshold (40)
+  * Experienced users: Personal threshold based on their behavioral history
+
+MEMBER 2 (Backend) SCHEMA USAGE:
+- User categorization: users.user_type ('new' vs 'experienced')
+- Dynamic thresholds: users.personal_threshold (calculated from avg_trust_score and trust_score_std)
+- Session management: sessions.last_activity for 10-minute timeout
+- Audit trail: threshold_history and session_timeouts for monitoring
+
+DATABASE COMPATIBILITY:
+- SQLite format (file-based)
+- All TEXT fields store JSON data for flexibility
+- Indexes optimized for real-time behavioral analysis queries
+- Foreign key constraints maintain data integrity
+*/

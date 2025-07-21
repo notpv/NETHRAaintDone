@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-07-19 23:43:38",
+  "validation_summary": {
+    "total_models_tested": 1,
+    "test_samples": 2000,
+    "normal_samples": 1400,
+    "attack_samples": 600
+  },
+  "model_performance": {
+    "neural_network": {
+      "accuracy": 0.9975,
+      "precision": 0.9985704074338814,
+      "recall": 0.9978571428571429,
+      "f1_score": 0.9982136477313326,
+      "roc_auc": 0.99995,
+      "is_best_model": true
+    }
+  },
+  "recommendations": [
+    "Excellent attack detection capability",
+    "Low false alarm rate - good user experience"
+  ],
+  "security_analysis": {
+    "missed_attacks": 2,
+    "false_alarms": 3,
+    "attack_detection_rate": 0.9966666666666667,
+    "false_alarm_rate": 0.002142857142857143,
+    "recommended_threshold": 40
+  }
+}
