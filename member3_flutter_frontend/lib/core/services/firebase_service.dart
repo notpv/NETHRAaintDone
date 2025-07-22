@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import '../constants/app_constants.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -17,12 +16,12 @@ class FirebaseService {
     if (_isInitialized) return;
     
     try {
-      // Initialize Firebase (simulated for demo)
+      // Simulated Firebase initialization for demo
       await Future.delayed(const Duration(milliseconds: 500));
       _isInitialized = true;
       
       if (kDebugMode) {
-        print('🔥 Firebase Service initialized successfully');
+        print('🔥 Firebase Service initialized successfully (Demo Mode)');
       }
     } catch (e) {
       if (kDebugMode) {

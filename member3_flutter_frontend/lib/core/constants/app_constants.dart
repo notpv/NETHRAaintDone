@@ -7,7 +7,7 @@ class AppConstants {
   
   // Security Settings - Dynamic thresholds removed, now calculated by backend
   static const int maxFailedAttempts = 3;
-  static const int sessionTimeoutMinutes = 10; // Updated from 30 to 10
+  static const int sessionTimeoutMinutes = 10;
   static const int trustUpdateIntervalSeconds = 3;
   
   // Demo Data - Updated to Indian Rupees
