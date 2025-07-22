@@ -37,30 +37,39 @@ class NethraBankingApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Core services
-        Provider(create: (_) => ApiService()),
-        Provider(create: (_) => FirebaseService()),
-        Provider(create: (_) => PersonalizationService()),
-        
-        // Authentication provider
-        ChangeNotifierProvider(
-          create: (context) => AuthProvider(),
+        // Core services as singletons
+        Provider<ApiService>(
+          create: (_) => ApiService(),
+          dispose: (_, service) => service.dispose(),
+        ),
+        Provider<FirebaseService>(
+          create: (_) => FirebaseService(),
+          dispose: (_, service) => service.dispose(),
+        ),
+        Provider<PersonalizationService>(
+          create: (_) => PersonalizationService(),
         ),
         
-        // Trust provider with dependencies
-        ChangeNotifierProxyProvider<AuthProvider, TrustProvider>(
-          create: (context) => TrustProvider(),
-          update: (context, authProvider, previous) => 
-            TrustProvider(authProvider: authProvider),
+        // Authentication provider
+        ChangeNotifierProvider<AuthProvider>(
+          create: (context) => AuthProvider(),
+          dispose: (_, provider) => provider.dispose(),
+        ),
+        
+        // Trust provider - single instance
+        ChangeNotifierProvider<TrustProvider>(
+          create: (context) => TrustProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+          ),
+          dispose: (_, provider) => provider.dispose(),
         ),
         
         // Personalization provider
-        ChangeNotifierProxyProvider<PersonalizationService, PersonalizationProvider>(
+        ChangeNotifierProvider<PersonalizationProvider>(
           create: (context) => PersonalizationProvider(
             Provider.of<PersonalizationService>(context, listen: false),
           ),
-          update: (context, personalizationService, previous) => 
-            PersonalizationProvider(personalizationService),
+          dispose: (_, provider) => provider.dispose(),
         ),
       ],
       child: Consumer<AuthProvider>(
@@ -70,15 +79,7 @@ class NethraBankingApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             home: FirebaseNotificationListener(
-             // Initialize in background without blocking UI
-             WidgetsBinding.instance.addPostFrameCallback((_) {
-               _initializeAppInBackground(authProvider);
-             });
-             
-             // Show UI immediately based on current auth status
-             return authProvider.isAuthenticated
-                 ? const DashboardScreen()
-                 : const LoginScreen();
+              child: _buildHome(authProvider),
             ),
           );
         },
@@ -86,10 +87,22 @@ class NethraBankingApp extends StatelessWidget {
     );
   }
   
-  Future<void> _initializeApp(AuthProvider authProvider) async {
+  Widget _buildHome(AuthProvider authProvider) {
+    // Initialize app in background without blocking UI
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAppInBackground(authProvider);
+    });
+    
+    // Show UI immediately based on current auth status
+    return authProvider.isAuthenticated
+        ? const DashboardScreen()
+        : const LoginScreen();
+  }
+  
+  void _initializeAppInBackground(AuthProvider authProvider) async {
     try {
-     // Initialize without blocking UI
-     authProvider.checkAuthStatus();
+      // Initialize without blocking UI
+      await authProvider.initialize();
     } catch (e) {
       // Log error but don't crash the app
       if (kDebugMode) {
@@ -98,54 +111,3 @@ class NethraBankingApp extends StatelessWidget {
     }
   }
 }
-
-class NethraSplashScreen extends StatelessWidget {
-  const NethraSplashScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.primaryColor,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.security,
-                size: 60,
-                color: AppTheme.primaryColor,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              'NETHRA',
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'AI-Powered Banking Security',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.white.withOpacity(0.9),
-              ),
-            ),
-            const SizedBox(height: 48),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
- void _initializeAppInBackground(AuthProvider authProvider) async {

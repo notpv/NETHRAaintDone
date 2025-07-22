@@ -7,8 +7,10 @@ import '../../shared/models/behavioral_data.dart';
 class ApiService {
   static const String baseUrl = AppConstants.baseUrl;
   String? _authToken;
+  bool _disposed = false;
   
   void setAuthToken(String token) {
+    if (_disposed) return;
     _authToken = token;
   }
   
@@ -24,6 +26,8 @@ class ApiService {
 
   // Authentication APIs
   Future<Map<String, dynamic>> login(String username, String password) async {
+    if (_disposed) throw Exception('ApiService disposed');
+    
     try {
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.authEndpoint}/login'),
@@ -157,6 +161,8 @@ class ApiService {
 
   // Session Management APIs
   Future<Map<String, dynamic>> createSession({Map<String, dynamic>? deviceInfo}) async {
+    if (_disposed) throw Exception('ApiService disposed');
+    
     try {
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.sessionEndpoint}/create'),
@@ -377,11 +383,18 @@ class ApiService {
   }
 
   Future<bool> authenticateUser(String username, String password) async {
+    if (_disposed) return false;
+    
     try {
       final result = await login(username, password);
       return result['access_token'] != null;
     } catch (e) {
       return false;
     }
+  }
+  
+  void dispose() {
+    _disposed = true;
+    _authToken = null;
   }
 }

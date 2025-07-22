@@ -15,6 +15,8 @@ class AuthProvider with ChangeNotifier {
   String? _currentSessionToken;
   final ApiService _apiService = ApiService();
   final FirebaseService _firebaseService = FirebaseService();
+  bool _disposed = false;
+  bool _initialized = false;
   
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
@@ -28,11 +30,16 @@ class AuthProvider with ChangeNotifier {
   FirebaseService get firebaseService => _firebaseService;
   
   Future<void> initialize() async {
+    if (_initialized || _disposed) return;
+    
     await _firebaseService.initialize();
     await checkAuthStatus();
+    _initialized = true;
   }
   
   Future<void> checkAuthStatus() async {
+    if (_disposed) return;
+    
    // Quick local check first
     final prefs = await SharedPreferences.getInstance();
     _isAuthenticated = prefs.getBool('isAuthenticated') ?? false;
@@ -98,7 +105,7 @@ class AuthProvider with ChangeNotifier {
         );
         
         // Create initial session
-        await _createUserSession();
+        // Don't create session here - let TrustProvider handle it
         
         return true;
       } else {
@@ -133,7 +140,7 @@ class AuthProvider with ChangeNotifier {
         );
         
         // Create session after successful login
-        await _createUserSession();
+        // Don't create session here - let TrustProvider handle it
         
         return true;
       } else {
@@ -174,7 +181,7 @@ class AuthProvider with ChangeNotifier {
   }
   
   Future<void> _createUserSession() async {
-    if (_userId == null) return;
+    if (_userId == null || _disposed) return;
     
     try {
       final sessionResult = await _apiService.createSession(
@@ -272,6 +279,30 @@ class AuthProvider with ChangeNotifier {
   
   void clearError() {
     _errorMessage = null;
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+  
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    
+    // Clean up resources
+    _apiService.dispose();
+    _firebaseService.dispose();
+    
+    super.dispose();
+  }
+  
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
+  }
+}
+
     notifyListeners();
   }
 }

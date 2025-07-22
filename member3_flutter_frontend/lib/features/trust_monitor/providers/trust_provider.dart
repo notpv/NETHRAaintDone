@@ -13,6 +13,7 @@ class TrustProvider with ChangeNotifier {
   late final ApiService _apiService;
   late final FirebaseService _firebaseService;
   Timer? _trustUpdateTimer;
+  bool _disposed = false;
   
   double _trustScore = 85.0;
   TrustLevel _trustLevel = TrustLevel.high;
@@ -25,6 +26,7 @@ class TrustProvider with ChangeNotifier {
   String? _currentSessionToken;
   AuthProvider? _authProvider;
   Map<String, dynamic>? _lastBackendResponse;
+  bool _sessionCreated = false;
   
   TrustProvider({AuthProvider? authProvider}) {
     _authProvider = authProvider;
@@ -59,13 +61,15 @@ class TrustProvider with ChangeNotifier {
   
   Future<void> startMonitoring() async {
     if (_isMonitoring) return;
+    if (_disposed) return;
     
     try {
       // Set user session info for behavioral service
-      if (_authProvider?.userId != null && _authProvider?.currentSessionToken != null) {
+      if (_authProvider?.userId != null && !_sessionCreated) {
         final userId = int.tryParse(_authProvider!.userId!) ?? 1;
-        _behavioralService.setUserSession(userId, _authProvider!.currentSessionToken);
-        _currentSessionToken = _authProvider!.currentSessionToken;
+        
+        // Create session only once
+        await _createSingleSession(userId);
       }
       
       _isMonitoring = true;
@@ -89,7 +93,33 @@ class TrustProvider with ChangeNotifier {
     notifyListeners();
   }
   
+  Future<void> _createSingleSession(int userId) async {
+    if (_sessionCreated || _disposed) return;
+    
+    try {
+      final sessionResult = await _authProvider!.apiService.createSession(
+        deviceInfo: {'platform': 'flutter', 'user_id': userId},
+      );
+      
+      if (sessionResult['session_token'] != null) {
+        _currentSessionToken = sessionResult['session_token'];
+        _behavioralService.setUserSession(userId, _currentSessionToken);
+        _sessionCreated = true;
+        
+        if (kDebugMode) {
+          print('✅ Single session created: $_currentSessionToken');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to create single session: $e');
+      }
+    }
+  }
+  
   void _handleTrustScoreUpdate(double trustScore, bool mirageActivated, Map<String, dynamic> response) {
+    if (_disposed) return;
+    
     _lastBackendResponse = response;
     _trustScore = trustScore;
     _trustLevel = _getTrustLevelFromScore(trustScore);
@@ -164,6 +194,7 @@ class TrustProvider with ChangeNotifier {
   
   Future<void> _updateTrustWithBackend() async {
     if (!_isMonitoring || _authProvider?.userId == null) return;
+    if (_disposed) return;
     
     try {
       final behavioralData = _behavioralService.generateBehavioralData();
@@ -208,6 +239,7 @@ class TrustProvider with ChangeNotifier {
     if (!_isMonitoring) return;
     
     _isMonitoring = false;
+    _sessionCreated = false;
     _behavioralService.stopMonitoring();
     _trustUpdateTimer?.cancel();
     _trustUpdateTimer = null;
@@ -265,6 +297,9 @@ class TrustProvider with ChangeNotifier {
   
   @override
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    
     stopMonitoring();
     _behavioralService.dispose();
     super.dispose();

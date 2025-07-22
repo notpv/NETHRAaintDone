@@ -167,6 +167,12 @@ class FirebaseService {
   }
   
   void dispose() {
+    if (!_notificationController.isClosed) {
+      _notificationController.close();
+    }
+  }
+}
+
     _notificationController.close();
   }
 }
