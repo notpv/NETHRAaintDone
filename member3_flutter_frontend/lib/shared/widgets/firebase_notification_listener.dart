@@ -1,7 +1,9 @@
+// lib/shared/widgets/firebase_notification_listener.dart (Updated)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/services/firebase_service.dart';
 import '../../core/themes/app_theme.dart';
+import '../../features/trust_monitor/providers/trust_provider.dart';
 
 class FirebaseNotificationListener extends StatefulWidget {
   final Widget child;
@@ -28,7 +30,14 @@ class _FirebaseNotificationListenerState extends State<FirebaseNotificationListe
   void _listenToNotifications() {
     _firebaseService.notificationStream.listen((notification) {
       if (mounted) {
-        _showNotification(notification);
+        // Check if we should suppress notifications during demo mode
+        final trustProvider = Provider.of<TrustProvider>(context, listen: false);
+        
+        // Only show notifications for normal users or critical threats
+        if (trustProvider.currentUserType == 'normal' || 
+            notification.priority == NotificationPriority.critical) {
+          _showNotification(notification);
+        }
       }
     });
   }
@@ -37,6 +46,13 @@ class _FirebaseNotificationListenerState extends State<FirebaseNotificationListe
     final color = _getNotificationColor(notification.type);
     final icon = _getNotificationIcon(notification.type);
     
+    // For critical notifications, show dialog immediately without snackbar
+    if (notification.priority == NotificationPriority.critical) {
+      _showCriticalNotificationDialog(notification);
+      return;
+    }
+    
+    // Show snackbar for non-critical notifications
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -71,34 +87,21 @@ class _FirebaseNotificationListenerState extends State<FirebaseNotificationListe
           ],
         ),
         backgroundColor: color,
-        duration: Duration(
-          seconds: notification.priority == NotificationPriority.critical ? 8 : 4,
-        ),
+        duration: const Duration(seconds: 3), // Reduced duration
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         margin: const EdgeInsets.all(16),
-        action: notification.priority == NotificationPriority.critical
-            ? SnackBarAction(
-                label: 'DISMISS',
-                textColor: Colors.white,
-                onPressed: () {
-                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                },
-              )
-            : null,
+        action: SnackBarAction(
+          label: 'DISMISS',
+          textColor: Colors.white,
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
       ),
     );
-    
-    // Show dialog for critical notifications
-    if (notification.priority == NotificationPriority.critical) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted) {
-          _showCriticalNotificationDialog(notification);
-        }
-      });
-    }
   }
   
   void _showCriticalNotificationDialog(FirebaseNotification notification) {
@@ -149,7 +152,7 @@ class _FirebaseNotificationListenerState extends State<FirebaseNotificationListe
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Time: ${notification.timestamp.toString()}',
+                    'Time: ${notification.timestamp.toString().substring(0, 19)}',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   if (notification.data.isNotEmpty)
@@ -171,7 +174,9 @@ class _FirebaseNotificationListenerState extends State<FirebaseNotificationListe
             ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                // Handle security action
+                // Handle security action - could logout user
+                final trustProvider = Provider.of<TrustProvider>(context, listen: false);
+                trustProvider.resetTrust();
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.errorColor,

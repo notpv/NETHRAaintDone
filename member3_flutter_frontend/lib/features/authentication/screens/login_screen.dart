@@ -1,3 +1,4 @@
+// lib/features/authentication/screens/login_screen.dart (Updated)
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -8,6 +9,7 @@ import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/behavioral_wrapper.dart';
 import '../screens/register_screen.dart';
+import '../../demo/screens/demo_user_selector_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -61,6 +63,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   _buildLoginButton(),
                   const SizedBox(height: 16),
                   _buildRegisterButton(),
+                  const SizedBox(height: 24),
+                  _buildDemoButton(),
                   const SizedBox(height: 16),
                   _buildDemoInfo(),
                   const SizedBox(height: 32),
@@ -204,6 +208,44 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     ).animate().fadeIn(delay: 1200.ms);
   }
+
+  Widget _buildDemoButton() {
+    return Container(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DemoUserSelectorScreen(),
+            ),
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.accentColor,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.science, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Try Demo Mode',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).animate().slideY(delay: 1250.ms, begin: 0.3);
+  }
   
   Widget _buildDemoInfo() {
     return Container(
@@ -241,6 +283,14 @@ class _LoginScreenState extends State<LoginScreen> {
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               fontFamily: 'monospace',
               color: AppTheme.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Or use Demo Mode to experience different user behavioral patterns without authentication.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.textSecondary,
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],

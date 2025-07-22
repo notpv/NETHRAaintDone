@@ -1,3 +1,6 @@
+// lib/features/dashboard/screens/dashboard_screen.dart (Updated)
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -13,6 +16,7 @@ import '../../transactions/screens/transactions_screen.dart';
 import '../../mirage_interface/screens/mirage_screen.dart';
 import '../../authentication/providers/auth_provider.dart';
 import '../../personalization/screens/personalization_demo_screen.dart';
+import '../../demo/screens/demo_user_selector_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -22,12 +26,20 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  Timer? _criticalThreatTimer;
+  
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeServices();
     });
+  }
+  
+  @override
+  void dispose() {
+    _criticalThreatTimer?.cancel();
+    super.dispose();
   }
   
   Future<void> _initializeServices() async {
@@ -37,8 +49,92 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Start trust monitoring
     await trustProvider.startMonitoring();
     
+    // Handle critical threat auto-logout
+    _setupCriticalThreatHandling(trustProvider, authProvider);
+    
     // Initialize user session and profile
     await _initializeUserSession(authProvider);
+  }
+  
+  void _setupCriticalThreatHandling(TrustProvider trustProvider, AuthProvider authProvider) {
+    // Listen for critical threat user type
+    trustProvider.addListener(() {
+      if (trustProvider.currentUserType == 'critical_threat' && 
+          trustProvider.isMonitoring &&
+          _criticalThreatTimer == null) {
+        
+        // Start 10-second countdown for auto-logout
+        _criticalThreatTimer = Timer(const Duration(seconds: 10), () {
+          if (mounted) {
+            _handleCriticalThreatLogout(authProvider);
+          }
+        });
+        
+        // Show countdown warning
+        _showCriticalThreatWarning();
+      }
+    });
+  }
+  
+  void _showCriticalThreatWarning() {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.dangerous, color: AppTheme.errorColor),
+            const SizedBox(width: 12),
+            const Text('Critical Security Threat'),
+          ],
+        ),
+        content: const Text(
+          'Automated behavior detected. Your session will be terminated for security reasons.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _handleCriticalThreatLogout(
+                Provider.of<AuthProvider>(context, listen: false)
+              );
+            },
+            child: const Text('Acknowledge'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _handleCriticalThreatLogout(AuthProvider authProvider) {
+    _criticalThreatTimer?.cancel();
+    _criticalThreatTimer = null;
+    
+    // Stop monitoring
+    final trustProvider = Provider.of<TrustProvider>(context, listen: false);
+    trustProvider.stopMonitoring();
+    
+    // Logout
+    authProvider.logout();
+    
+    // Show security alert
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.security, color: Colors.white),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Session terminated due to critical security threat'),
+            ),
+          ],
+        ),
+        backgroundColor: AppTheme.errorColor,
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
   
   Future<void> _initializeUserSession(AuthProvider authProvider) async {
@@ -47,19 +143,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
       await authProvider.apiService.getUserProfile();
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Text('Connected to NETHRA backend'),
-              ],
+        // Don't show success message for demo users to avoid UI interference
+        final trustProvider = Provider.of<TrustProvider>(context, listen: false);
+        if (trustProvider.currentUserType == 'normal') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('Connected to NETHRA backend'),
+                ],
+              ),
+              backgroundColor: AppTheme.successColor,
+              duration: const Duration(seconds: 2),
             ),
-            backgroundColor: AppTheme.successColor,
-            duration: const Duration(seconds: 2),
-          ),
-        );
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -95,11 +195,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               
               return CustomScrollView(
                 slivers: [
-                  _buildAppBar(context),
+                  _buildAppBar(context, trustProvider),
                   SliverPadding(
                     padding: const EdgeInsets.all(16),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
+                        if (trustProvider.currentUserType != 'normal')
+                          _buildDemoIndicator(trustProvider).animate().slideY(delay: 50.ms),
+                        if (trustProvider.currentUserType != 'normal')
+                          const SizedBox(height: 16),
                         _buildTrustIndicator(trustProvider),
                         const SizedBox(height: 24),
                         _buildAccountCard().animate().slideX(delay: 300.ms),
@@ -121,7 +225,115 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildAppBar(BuildContext context) {
+  Widget _buildDemoIndicator(TrustProvider trustProvider) {
+    final userTypeInfo = _getUserTypeInfo(trustProvider.currentUserType);
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            userTypeInfo['color'].withOpacity(0.8),
+            userTypeInfo['color'],
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: userTypeInfo['color'].withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.science,
+            color: Colors.white,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'DEMO MODE: ${userTypeInfo['name']}',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  userTypeInfo['description'],
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.white.withOpacity(0.9),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DemoUserSelectorScreen(),
+                ),
+              );
+            },
+            child: Text(
+              'CHANGE',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Map<String, dynamic> _getUserTypeInfo(String userType) {
+    switch (userType) {
+      case 'low_threat':
+        return {
+          'name': 'Sarah Thompson',
+          'description': 'Normal User - Consistent Behavior',
+          'color': AppTheme.successColor,
+        };
+      case 'medium_threat':
+        return {
+          'name': 'Alex Rodriguez',
+          'description': 'Moderate Risk - Variable Behavior',
+          'color': AppTheme.accentColor,
+        };
+      case 'high_threat':
+        return {
+          'name': 'Unknown User',
+          'description': 'High Risk - Suspicious Activity',
+          'color': AppTheme.warningColor,
+        };
+      case 'critical_threat':
+        return {
+          'name': 'Automated Bot',
+          'description': 'Critical Threat - Auto-Logout Soon',
+          'color': AppTheme.errorColor,
+        };
+      default:
+        return {
+          'name': 'Normal User',
+          'description': 'Standard Operation',
+          'color': AppTheme.primaryColor,
+        };
+    }
+  }
+
+  Widget _buildAppBar(BuildContext context, TrustProvider trustProvider) {
     return SliverAppBar(
       expandedHeight: 100,
       floating: false,
@@ -142,7 +354,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 Text(
-                  authProvider.username ?? 'User',
+                  trustProvider.currentUserType != 'normal' 
+                      ? _getUserTypeInfo(trustProvider.currentUserType)['name']
+                      : authProvider.username ?? 'User',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -153,32 +367,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
       actions: [
+        if (trustProvider.currentUserType != 'normal')
+          IconButton(
+            icon: const Icon(Icons.science),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const DemoUserSelectorScreen(),
+                ),
+              );
+            },
+            tooltip: 'Demo Controls',
+          ),
         IconButton(
           icon: const Icon(Icons.notifications_outlined),
           onPressed: () {
             _showNotificationCenter(context);
           },
         ),
-        IconButton(
-          icon: const Icon(Icons.psychology),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const PersonalizationDemoScreen(),
-              ),
-            );
-          },
-        ),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) {
             switch (value) {
+              case 'demo_selector':
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DemoUserSelectorScreen(),
+                  ),
+                );
+                break;
               case 'profile':
                 _showUserProfile(context);
-                break;
-              case 'delete_account':
-                _showDeleteAccountDialog(context);
                 break;
               case 'logout':
                 _handleLogout(context);
@@ -186,6 +407,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             }
           },
           itemBuilder: (context) => [
+            if (trustProvider.currentUserType != 'normal')
+              const PopupMenuItem(
+                value: 'demo_selector',
+                child: Row(
+                  children: [
+                    Icon(Icons.science),
+                    SizedBox(width: 8),
+                    Text('Demo Controls'),
+                  ],
+                ),
+              ),
             const PopupMenuItem(
               value: 'profile',
               child: Row(
@@ -193,16 +425,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Icon(Icons.person),
                   SizedBox(width: 8),
                   Text('Profile'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'delete_account',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_forever, color: AppTheme.errorColor),
-                  SizedBox(width: 8),
-                  Text('Delete Account', style: TextStyle(color: AppTheme.errorColor)),
                 ],
               ),
             ),
@@ -325,6 +547,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             subtitle: trustProvider.isPersonalized ? 'Fully adapted' : 'Learning your patterns',
             color: trustProvider.isPersonalized ? AppTheme.successColor : AppTheme.accentColor,
           ),
+          if (trustProvider.currentUserType != 'normal') ...[
+            const SizedBox(height: 12),
+            _buildInsightItem(
+              icon: Icons.science,
+              title: 'Demo Mode',
+              subtitle: '${_getUserTypeInfo(trustProvider.currentUserType)['name']} simulation',
+              color: _getUserTypeInfo(trustProvider.currentUserType)['color'],
+            ),
+          ],
         ],
       ),
     );
@@ -411,6 +642,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
   void _showUserProfile(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final trustProvider = Provider.of<TrustProvider>(context, listen: false);
     
     showDialog(
       context: context,
@@ -420,6 +652,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (trustProvider.currentUserType != 'normal') ...[
+              Text('Demo User: ${_getUserTypeInfo(trustProvider.currentUserType)['name']}'),
+              Text('User Type: ${trustProvider.currentUserType}'),
+              const SizedBox(height: 8),
+            ],
             Text('Username: ${authProvider.username ?? 'N/A'}'),
             Text('Email: ${authProvider.email ?? 'N/A'}'),
             Text('User ID: ${authProvider.userId ?? 'N/A'}'),
@@ -442,51 +679,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
   
-  void _showDeleteAccountDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            const Icon(Icons.warning, color: AppTheme.errorColor),
-            const SizedBox(width: 8),
-            const Text('Delete Account'),
-          ],
-        ),
-        content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
-              final success = await authProvider.deleteAccount();
-              
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(success ? 'Account deleted successfully' : 'Failed to delete account'),
-                    backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.errorColor,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-  
   void _showMoreActionsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -503,14 +695,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 20),
             ListTile(
-              leading: const Icon(Icons.psychology),
-              title: const Text('Personalization Demo'),
+              leading: const Icon(Icons.science),
+              title: const Text('Demo Controls'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const PersonalizationDemoScreen(),
+                    builder: (context) => const DemoUserSelectorScreen(),
                   ),
                 );
               },
@@ -558,6 +750,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
+              _criticalThreatTimer?.cancel();
               Provider.of<AuthProvider>(context, listen: false).logout();
               Provider.of<TrustProvider>(context, listen: false).stopMonitoring();
             },

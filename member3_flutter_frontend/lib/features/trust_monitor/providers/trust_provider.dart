@@ -5,6 +5,7 @@ import '../../../core/services/api_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/personalization_service.dart';
 import '../../../shared/models/trust_data.dart';
+import '../../../shared/models/behavioral_data.dart';
 import '../../authentication/providers/auth_provider.dart';
 
 class TrustProvider with ChangeNotifier {
@@ -30,6 +31,10 @@ class TrustProvider with ChangeNotifier {
   int _retryCount = 0;
   static const int _maxRetries = 3;
   
+  // For demo user simulation
+  String _currentUserType = 'normal';
+  int _demoSessionCount = 0;
+  
   TrustProvider({AuthProvider? authProvider}) {
     _authProvider = authProvider;
     _apiService = authProvider?.apiService ?? ApiService();
@@ -49,6 +54,15 @@ class TrustProvider with ChangeNotifier {
   double get standardTrustScore => _standardTrustScore;
   String? get currentSessionToken => _currentSessionToken;
   Map<String, dynamic>? get lastBackendResponse => _lastBackendResponse;
+  String get currentUserType => _currentUserType;
+  
+  // Method to get current behavioral data
+  BehavioralData? getBehavioralData() {
+    if (_behavioralService.isMonitoring) {
+      return _behavioralService.generateBehavioralData();
+    }
+    return null;
+  }
   
   Future<void> _initializeServices() async {
     try {
@@ -71,6 +85,54 @@ class TrustProvider with ChangeNotifier {
     }
   }
   
+  // Demo user simulation methods
+  void setUserType(String userType) {
+    _currentUserType = userType;
+    _demoSessionCount = 0;
+    
+    switch (userType) {
+      case 'low_threat':
+        _trustScore = 85.0;
+        _trustLevel = TrustLevel.high;
+        _riskFactors = [];
+        _shouldShowMirage = false;
+        break;
+      case 'medium_threat':
+        _trustScore = 65.0;
+        _trustLevel = TrustLevel.medium;
+        _riskFactors = ['Slight behavioral variation detected'];
+        _shouldShowMirage = false;
+        break;
+      case 'high_threat':
+        _trustScore = 25.0;
+        _trustLevel = TrustLevel.critical;
+        _riskFactors = [
+          'Suspicious behavioral patterns',
+          'Unusual device handling',
+          'Potential security threat'
+        ];
+        _shouldShowMirage = true;
+        break;
+      case 'critical_threat':
+        _trustScore = 5.0;
+        _trustLevel = TrustLevel.critical;
+        _riskFactors = [
+          'Critical security threat detected',
+          'Immediate action required',
+          'Session will be terminated'
+        ];
+        _shouldShowMirage = true;
+        break;
+      default:
+        _trustScore = 75.0;
+        _trustLevel = TrustLevel.high;
+        _riskFactors = [];
+        _shouldShowMirage = false;
+    }
+    
+    _safeNotifyListeners();
+  }
+  
   Future<void> startMonitoring() async {
     if (_isMonitoring || _disposed) return;
     
@@ -87,6 +149,7 @@ class TrustProvider with ChangeNotifier {
       // Start periodic trust updates with retry logic
       _trustUpdateTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
         _updateTrustWithBackend();
+        _simulateUserBehavior(); // For demo purposes
       });
       
       if (kDebugMode) {
@@ -100,6 +163,71 @@ class TrustProvider with ChangeNotifier {
     }
     
     _safeNotifyListeners();
+  }
+  
+  void _simulateUserBehavior() {
+    _demoSessionCount++;
+    
+    switch (_currentUserType) {
+      case 'low_threat':
+        // Gradual improvement in trust score
+        _trustScore = (85.0 + (_demoSessionCount * 0.5)).clamp(85.0, 95.0);
+        _trustLevel = TrustLevel.high;
+        _riskFactors = [];
+        _shouldShowMirage = false;
+        break;
+        
+      case 'medium_threat':
+        // Fluctuating trust score
+        final variation = (_demoSessionCount % 4 - 2) * 5.0;
+        _trustScore = (65.0 + variation).clamp(55.0, 75.0);
+        _trustLevel = _trustScore >= 70 ? TrustLevel.high : TrustLevel.medium;
+        _riskFactors = _trustScore < 60 ? ['Behavioral inconsistency detected'] : [];
+        _shouldShowMirage = false;
+        break;
+        
+      case 'high_threat':
+        // Declining trust score
+        _trustScore = (35.0 - (_demoSessionCount * 2.0)).clamp(15.0, 35.0);
+        _trustLevel = TrustLevel.critical;
+        _riskFactors = [
+          'Suspicious behavioral patterns',
+          'Potential unauthorized access',
+          if (_trustScore < 25) 'Critical security alert'
+        ];
+        _shouldShowMirage = true;
+        break;
+        
+      case 'critical_threat':
+        // Immediate critical threat - auto logout after 5 updates
+        if (_demoSessionCount >= 5) {
+          _handleAutoLogout();
+          return;
+        }
+        _trustScore = (10.0 - (_demoSessionCount * 1.0)).clamp(1.0, 10.0);
+        _trustLevel = TrustLevel.critical;
+        _riskFactors = [
+          'Critical security threat',
+          'Automated behavior detected',
+          'Session termination imminent'
+        ];
+        _shouldShowMirage = true;
+        break;
+    }
+    
+    _safeNotifyListeners();
+  }
+  
+  void _handleAutoLogout() {
+    if (_authProvider != null) {
+      _authProvider!.logout();
+      _firebaseService.sendTamperAlert({
+        'reason': 'Critical trust score detected',
+        'trust_score': _trustScore,
+        'user_type': _currentUserType,
+      });
+    }
+    stopMonitoring();
   }
   
   Future<void> _createSingleSession(int userId) async {
@@ -130,14 +258,19 @@ class TrustProvider with ChangeNotifier {
     if (_disposed) return;
     
     _lastBackendResponse = response;
-    _trustScore = trustScore;
-    _trustLevel = _getTrustLevelFromScore(trustScore);
-    _shouldShowMirage = mirageActivated;
-    _isPersonalized = response['learning_phase'] == false;
-    _retryCount = 0; // Reset retry count on successful update
     
-    // Update risk factors based on backend response
-    _updateRiskFactors(response);
+    // Only update if not in demo simulation mode
+    if (_currentUserType == 'normal') {
+      _trustScore = trustScore;
+      _trustLevel = _getTrustLevelFromScore(trustScore);
+      _shouldShowMirage = mirageActivated;
+      _isPersonalized = response['learning_phase'] == false;
+      
+      // Update risk factors based on backend response
+      _updateRiskFactors(response);
+    }
+    
+    _retryCount = 0; // Reset retry count on successful update
     
     // Send Firebase notifications based on trust score and events
     _handleFirebaseNotifications(trustScore, mirageActivated, response);
@@ -146,6 +279,8 @@ class TrustProvider with ChangeNotifier {
   }
   
   void _updateRiskFactors(Map<String, dynamic> response) {
+    if (_currentUserType != 'normal') return; // Don't override demo risk factors
+    
     _riskFactors.clear();
     
     final securityAction = response['security_action'] ?? '';
@@ -176,6 +311,9 @@ class TrustProvider with ChangeNotifier {
   
   Future<void> _handleFirebaseNotifications(double trustScore, bool mirageActivated, Map<String, dynamic> response) async {
     try {
+      // Suppress notifications during demo mode to avoid UI interference
+      if (_currentUserType != 'normal') return;
+      
       // Send trust score alert if low
       if (trustScore < 40) {
         final level = _getTrustLevelFromScore(trustScore).name;
@@ -253,7 +391,7 @@ class TrustProvider with ChangeNotifier {
   }
   
   void _useFallbackTrustBehavior() {
-    if (_disposed) return;
+    if (_disposed || _currentUserType != 'normal') return;
     
     // Simulate trust score variations for demo when backend is unavailable
     final behavioralData = _behavioralService.generateBehavioralData();
@@ -295,6 +433,7 @@ class TrustProvider with ChangeNotifier {
     _trustUpdateTimer?.cancel();
     _trustUpdateTimer = null;
     _retryCount = 0;
+    _demoSessionCount = 0;
     
     if (kDebugMode) {
       print('🛑 Trust monitoring stopped');
@@ -320,9 +459,11 @@ class TrustProvider with ChangeNotifier {
     ];
     _shouldShowMirage = true;
     
-    // Send Firebase alerts
-    await _firebaseService.sendTrustScoreAlert(_trustScore, _trustLevel.name);
-    await _firebaseService.sendMirageActivationAlert(_trustScore, 'high');
+    // Send Firebase alerts (but suppress during demo mode)
+    if (_currentUserType == 'normal') {
+      await _firebaseService.sendTrustScoreAlert(_trustScore, _trustLevel.name);
+      await _firebaseService.sendMirageActivationAlert(_trustScore, 'high');
+    }
     
     _safeNotifyListeners();
   }
@@ -334,9 +475,13 @@ class TrustProvider with ChangeNotifier {
     _riskFactors = [];
     _shouldShowMirage = false;
     _retryCount = 0;
+    _currentUserType = 'normal';
+    _demoSessionCount = 0;
     
-    // Send restoration alert
-    await _firebaseService.sendSecurityRestoreAlert();
+    // Send restoration alert (but suppress during demo mode)
+    if (_currentUserType == 'normal') {
+      await _firebaseService.sendSecurityRestoreAlert();
+    }
     
     _safeNotifyListeners();
   }

@@ -170,8 +170,7 @@ class FirebaseService {
     if (!_notificationController.isClosed) {
       _notificationController.close();
     }
-  }
-}
+
 
     _notificationController.close();
   }
