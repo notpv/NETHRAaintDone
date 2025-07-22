@@ -27,6 +27,8 @@ class TrustProvider with ChangeNotifier {
   AuthProvider? _authProvider;
   Map<String, dynamic>? _lastBackendResponse;
   bool _sessionCreated = false;
+  int _retryCount = 0;
+  static const int _maxRetries = 3;
   
   TrustProvider({AuthProvider? authProvider}) {
     _authProvider = authProvider;
@@ -49,34 +51,41 @@ class TrustProvider with ChangeNotifier {
   Map<String, dynamic>? get lastBackendResponse => _lastBackendResponse;
   
   Future<void> _initializeServices() async {
-    await _firebaseService.initialize();
-    await _personalizationService.initialize();
-    _isPersonalized = !_personalizationService.isLearningPhase;
-    
-    // Set up behavioral service callback
-    _behavioralService.setTrustScoreCallback(_handleTrustScoreUpdate);
-    
-    notifyListeners();
+    try {
+      await _firebaseService.initialize();
+      await _personalizationService.initialize();
+      _isPersonalized = !_personalizationService.isLearningPhase;
+      
+      // Set up behavioral service callback
+      _behavioralService.setTrustScoreCallback(_handleTrustScoreUpdate);
+      
+      if (kDebugMode) {
+        print('✅ Trust services initialized');
+      }
+      
+      _safeNotifyListeners();
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Trust services initialization failed: $e');
+      }
+    }
   }
   
   Future<void> startMonitoring() async {
-    if (_isMonitoring) return;
-    if (_disposed) return;
+    if (_isMonitoring || _disposed) return;
     
     try {
       // Set user session info for behavioral service
       if (_authProvider?.userId != null && !_sessionCreated) {
         final userId = int.tryParse(_authProvider!.userId!) ?? 1;
-        
-        // Create session only once
         await _createSingleSession(userId);
       }
       
       _isMonitoring = true;
       _behavioralService.startMonitoring();
       
-      // Start periodic trust updates
-      _trustUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      // Start periodic trust updates with retry logic
+      _trustUpdateTimer = Timer.periodic(const Duration(seconds: 8), (timer) {
         _updateTrustWithBackend();
       });
       
@@ -90,7 +99,7 @@ class TrustProvider with ChangeNotifier {
       }
     }
     
-    notifyListeners();
+    _safeNotifyListeners();
   }
   
   Future<void> _createSingleSession(int userId) async {
@@ -107,12 +116,12 @@ class TrustProvider with ChangeNotifier {
         _sessionCreated = true;
         
         if (kDebugMode) {
-          print('✅ Single session created: $_currentSessionToken');
+          print('✅ Trust session created: $_currentSessionToken');
         }
       }
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Failed to create single session: $e');
+        print('❌ Failed to create trust session: $e');
       }
     }
   }
@@ -125,6 +134,7 @@ class TrustProvider with ChangeNotifier {
     _trustLevel = _getTrustLevelFromScore(trustScore);
     _shouldShowMirage = mirageActivated;
     _isPersonalized = response['learning_phase'] == false;
+    _retryCount = 0; // Reset retry count on successful update
     
     // Update risk factors based on backend response
     _updateRiskFactors(response);
@@ -132,7 +142,7 @@ class TrustProvider with ChangeNotifier {
     // Send Firebase notifications based on trust score and events
     _handleFirebaseNotifications(trustScore, mirageActivated, response);
     
-    notifyListeners();
+    _safeNotifyListeners();
   }
   
   void _updateRiskFactors(Map<String, dynamic> response) {
@@ -193,13 +203,16 @@ class TrustProvider with ChangeNotifier {
   }
   
   Future<void> _updateTrustWithBackend() async {
-    if (!_isMonitoring || _authProvider?.userId == null) return;
-    if (_disposed) return;
+    if (!_isMonitoring || _authProvider?.userId == null || _disposed) return;
     
     try {
       final behavioralData = _behavioralService.generateBehavioralData();
       final userId = int.tryParse(_authProvider!.userId!) ?? 1;
       final backendData = behavioralData.toBackendFormat(userId);
+      
+      if (kDebugMode) {
+        print('Sending trust update to backend...');
+      }
       
       final result = await _apiService.predictTrustScore(backendData);
       
@@ -209,6 +222,10 @@ class TrustProvider with ChangeNotifier {
           result['mirage_activated'] == true,
           result
         );
+        
+        if (kDebugMode) {
+          print('✅ Trust update successful: ${result['trust_score']}');
+        }
       }
       
       // Send session heartbeat
@@ -221,11 +238,45 @@ class TrustProvider with ChangeNotifier {
           }
         }
       }
+      
     } catch (e) {
+      _retryCount++;
       if (kDebugMode) {
-        print('❌ Backend trust update failed: $e');
+        print('❌ Backend trust update failed (attempt $_retryCount): $e');
+      }
+      
+      // If max retries reached, use fallback behavior
+      if (_retryCount >= _maxRetries) {
+        _useFallbackTrustBehavior();
       }
     }
+  }
+  
+  void _useFallbackTrustBehavior() {
+    if (_disposed) return;
+    
+    // Simulate trust score variations for demo when backend is unavailable
+    final behavioralData = _behavioralService.generateBehavioralData();
+    
+    // Simple local trust calculation
+    double localTrustScore = 75.0;
+    
+    // Adjust based on basic behavioral metrics
+    if (behavioralData.averageTapPressure < 0.3) localTrustScore -= 10;
+    if (behavioralData.averageSwipeVelocity < 100) localTrustScore -= 15;
+    if (behavioralData.deviceTiltVariation > 0.8) localTrustScore -= 8;
+    
+    localTrustScore = localTrustScore.clamp(0.0, 100.0);
+    
+    _trustScore = localTrustScore;
+    _trustLevel = _getTrustLevelFromScore(localTrustScore);
+    _shouldShowMirage = localTrustScore < 40;
+    
+    if (kDebugMode) {
+      print('🔄 Using fallback trust behavior: $localTrustScore');
+    }
+    
+    _safeNotifyListeners();
   }
   
   TrustLevel _getTrustLevelFromScore(double score) {
@@ -243,16 +294,19 @@ class TrustProvider with ChangeNotifier {
     _behavioralService.stopMonitoring();
     _trustUpdateTimer?.cancel();
     _trustUpdateTimer = null;
+    _retryCount = 0;
     
     if (kDebugMode) {
       print('🛑 Trust monitoring stopped');
     }
     
-    notifyListeners();
+    _safeNotifyListeners();
   }
   
   void forceUpdateTrust() {
-    _updateTrustWithBackend();
+    if (_isMonitoring) {
+      _updateTrustWithBackend();
+    }
   }
   
   Future<void> simulateThreat() async {
@@ -270,7 +324,7 @@ class TrustProvider with ChangeNotifier {
     await _firebaseService.sendTrustScoreAlert(_trustScore, _trustLevel.name);
     await _firebaseService.sendMirageActivationAlert(_trustScore, 'high');
     
-    notifyListeners();
+    _safeNotifyListeners();
   }
   
   Future<void> resetTrust() async {
@@ -279,20 +333,31 @@ class TrustProvider with ChangeNotifier {
     _trustLevel = TrustLevel.high;
     _riskFactors = [];
     _shouldShowMirage = false;
+    _retryCount = 0;
     
     // Send restoration alert
     await _firebaseService.sendSecurityRestoreAlert();
     
-    notifyListeners();
+    _safeNotifyListeners();
   }
   
   // Record behavioral interactions
   void recordTap(double x, double y, double pressure) {
-    _behavioralService.recordTap(x, y, pressure, const Duration(milliseconds: 100));
+    if (!_disposed) {
+      _behavioralService.recordTap(x, y, pressure, const Duration(milliseconds: 100));
+    }
   }
   
   void recordSwipe(double startX, double startY, double endX, double endY, double velocity) {
-    _behavioralService.recordSwipe(startX, startY, endX, endY, velocity, const Duration(milliseconds: 300));
+    if (!_disposed) {
+      _behavioralService.recordSwipe(startX, startY, endX, endY, velocity, const Duration(milliseconds: 300));
+    }
+  }
+  
+  void _safeNotifyListeners() {
+    if (!_disposed) {
+      notifyListeners();
+    }
   }
   
   @override
@@ -303,5 +368,12 @@ class TrustProvider with ChangeNotifier {
     stopMonitoring();
     _behavioralService.dispose();
     super.dispose();
+  }
+  
+  @override
+  void notifyListeners() {
+    if (!_disposed) {
+      super.notifyListeners();
+    }
   }
 }
