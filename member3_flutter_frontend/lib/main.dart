@@ -30,47 +30,60 @@ void main() {
   runApp(const NethraBankingApp());
 }
 
-class NethraBankingApp extends StatelessWidget {
+class NethraBankingApp extends StatefulWidget {
   const NethraBankingApp({super.key});
+
+  @override
+  State<NethraBankingApp> createState() => _NethraBankingAppState();
+}
+
+class _NethraBankingAppState extends State<NethraBankingApp> {
+  late final ApiService _apiService;
+  late final FirebaseService _firebaseService;
+  late final PersonalizationService _personalizationService;
+  late final AuthProvider _authProvider;
+  late final TrustProvider _trustProvider;
+  late final PersonalizationProvider _personalizationProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize services
+    _apiService = ApiService();
+    _firebaseService = FirebaseService();
+    _personalizationService = PersonalizationService();
+    
+    // Initialize providers
+    _authProvider = AuthProvider();
+    _trustProvider = TrustProvider(authProvider: _authProvider);
+    _personalizationProvider = PersonalizationProvider(_personalizationService);
+  }
+
+  @override
+  void dispose() {
+    // Dispose in reverse order
+    _trustProvider.dispose();
+    _authProvider.dispose();
+    _apiService.dispose();
+    _firebaseService.dispose();
+    
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        // Core services as singletons
-        Provider<ApiService>(
-          create: (_) => ApiService(),
-          dispose: (_, service) => service.dispose(),
-        ),
-        Provider<FirebaseService>(
-          create: (_) => FirebaseService(),
-          dispose: (_, service) => service.dispose(),
-        ),
-        Provider<PersonalizationService>(
-          create: (_) => PersonalizationService(),
-        ),
+        // Core services
+        Provider<ApiService>.value(value: _apiService),
+        Provider<FirebaseService>.value(value: _firebaseService),
+        Provider<PersonalizationService>.value(value: _personalizationService),
         
-        // Authentication provider
-        ChangeNotifierProvider<AuthProvider>(
-          create: (context) => AuthProvider(),
-          dispose: (_, provider) => provider.dispose(),
-        ),
-        
-        // Trust provider - single instance
-        ChangeNotifierProvider<TrustProvider>(
-          create: (context) => TrustProvider(
-            authProvider: Provider.of<AuthProvider>(context, listen: false),
-          ),
-          dispose: (_, provider) => provider.dispose(),
-        ),
-        
-        // Personalization provider
-        ChangeNotifierProvider<PersonalizationProvider>(
-          create: (context) => PersonalizationProvider(
-            Provider.of<PersonalizationService>(context, listen: false),
-          ),
-          dispose: (_, provider) => provider.dispose(),
-        ),
+        // Providers
+        ChangeNotifierProvider<AuthProvider>.value(value: _authProvider),
+        ChangeNotifierProvider<TrustProvider>.value(value: _trustProvider),
+        ChangeNotifierProvider<PersonalizationProvider>.value(value: _personalizationProvider),
       ],
       child: Consumer<AuthProvider>(
         builder: (context, authProvider, child) {
@@ -103,10 +116,14 @@ class NethraBankingApp extends StatelessWidget {
     try {
       // Initialize without blocking UI
       await authProvider.initialize();
+      
+      if (kDebugMode) {
+        print('✅ App initialized successfully');
+      }
     } catch (e) {
       // Log error but don't crash the app
       if (kDebugMode) {
-        print('⚠️ App initialization error: $e');
+        print('⚠️ App initialization error (non-critical): $e');
       }
     }
   }
