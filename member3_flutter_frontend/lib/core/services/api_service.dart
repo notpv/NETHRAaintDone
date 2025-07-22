@@ -24,36 +24,54 @@ class ApiService {
     return headers;
   }
 
-  // Authentication APIs
+  Map<String, String> get _formHeaders {
+    final headers = <String, String>{};
+    if (_authToken != null) {
+      headers['Authorization'] = 'Bearer $_authToken';
+    }
+    return headers;
+  }
+
+  // Authentication APIs - FIXED for OAuth2PasswordRequestForm
   Future<Map<String, dynamic>> login(String username, String password) async {
     if (_disposed) throw Exception('ApiService disposed');
     
     try {
+      // CRITICAL FIX: Send as form data, not JSON
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.authEndpoint}/login'),
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        headers: _formHeaders,
         body: {
           'username': username,
           'password': password,
+          'grant_type': 'password', // OAuth2 standard field
         },
-     ).timeout(const Duration(seconds: 10)); // Add timeout
+      ).timeout(const Duration(seconds: 15));
+
+      print('Login response status: ${response.statusCode}');
+      print('Login response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['access_token'] != null) {
           setAuthToken(data['access_token']);
+          print('✅ Login successful, token set');
         }
         return data;
       } else {
-        throw Exception('Login failed: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['detail'] ?? 'Login failed: ${response.statusCode}');
       }
     } catch (e) {
+      print('❌ Login error: $e');
       throw Exception('Network error during login: $e');
     }
   }
 
   Future<Map<String, dynamic>> register(String username, String email, String password) async {
     try {
+      print('Attempting registration for: $username');
+      
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.authEndpoint}/register'),
         headers: _headers,
@@ -62,18 +80,24 @@ class ApiService {
           'email': email,
           'password': password,
         }),
-      );
+      ).timeout(const Duration(seconds: 15));
+
+      print('Register response status: ${response.statusCode}');
+      print('Register response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['access_token'] != null) {
           setAuthToken(data['access_token']);
+          print('✅ Registration successful, token set');
         }
         return data;
       } else {
-        throw Exception('Registration failed: ${response.statusCode}');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['detail'] ?? 'Registration failed: ${response.statusCode}');
       }
     } catch (e) {
+      print('❌ Registration error: $e');
       throw Exception('Network error during registration: $e');
     }
   }
@@ -85,22 +109,25 @@ class ApiService {
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.authEndpoint}/validate-token'),
         headers: _headers,
-     ).timeout(const Duration(seconds: 5)); // Add timeout
+      ).timeout(const Duration(seconds: 8));
 
       return response.statusCode == 200;
     } catch (e) {
+      print('❌ Token validation failed: $e');
       return false;
     }
   }
 
   Future<void> logout() async {
     try {
-      await http.post(
-        Uri.parse('$baseUrl${AppConstants.authEndpoint}/logout'),
-        headers: _headers,
-      );
+      if (_authToken != null) {
+        await http.post(
+          Uri.parse('$baseUrl${AppConstants.authEndpoint}/logout'),
+          headers: _headers,
+        ).timeout(const Duration(seconds: 5));
+      }
     } catch (e) {
-      // Ignore logout errors
+      print('Logout error (ignored): $e');
     } finally {
       _authToken = null;
     }
@@ -109,18 +136,27 @@ class ApiService {
   // Trust Score APIs
   Future<Map<String, dynamic>> predictTrustScore(Map<String, dynamic> behavioralData) async {
     try {
+      print('Sending trust prediction request...');
+      print('Behavioral data: $behavioralData');
+      
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.trustEndpoint}/predict-trust'),
         headers: _headers,
         body: jsonEncode(behavioralData),
-      );
+      ).timeout(const Duration(seconds: 10));
 
+      print('Trust prediction response: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final result = jsonDecode(response.body);
+        print('✅ Trust prediction successful: ${result['trust_score']}');
+        return result;
       } else {
+        print('❌ Trust prediction failed: ${response.statusCode}');
         throw Exception('Trust prediction failed: ${response.statusCode}');
       }
     } catch (e) {
+      print('❌ Trust prediction error: $e');
       throw Exception('Network error during trust prediction: $e');
     }
   }
@@ -130,7 +166,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.trustEndpoint}/threshold-analysis/$userId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -147,7 +183,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.trustEndpoint}/user-trust-history/$userId?limit=$limit'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -164,20 +200,27 @@ class ApiService {
     if (_disposed) throw Exception('ApiService disposed');
     
     try {
+      print('Creating session with device info: $deviceInfo');
+      
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.sessionEndpoint}/create'),
         headers: _headers,
         body: jsonEncode({
           'device_info': deviceInfo ?? {},
         }),
-      );
+      ).timeout(const Duration(seconds: 10));
 
+      print('Session creation response: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final result = jsonDecode(response.body);
+        print('✅ Session created: ${result['session_token']}');
+        return result;
       } else {
         throw Exception('Session creation failed: ${response.statusCode}');
       }
     } catch (e) {
+      print('❌ Session creation error: $e');
       throw Exception('Network error during session creation: $e');
     }
   }
@@ -187,7 +230,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.sessionEndpoint}/status/$sessionToken'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -204,7 +247,7 @@ class ApiService {
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.sessionEndpoint}/heartbeat/$sessionToken'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -221,7 +264,7 @@ class ApiService {
       final response = await http.delete(
         Uri.parse('$baseUrl${AppConstants.sessionEndpoint}/terminate/$sessionToken'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -239,7 +282,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.mirageEndpoint}/status/$userId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -256,7 +299,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.mirageEndpoint}/fake-data/$userId'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -274,7 +317,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.userEndpoint}/profile'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -291,7 +334,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.userEndpoint}/trust-stats'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 8));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -309,7 +352,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.monitoringEndpoint}/health'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -326,7 +369,7 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl${AppConstants.monitoringEndpoint}/metrics'),
         headers: _headers,
-      );
+      ).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -389,6 +432,7 @@ class ApiService {
       final result = await login(username, password);
       return result['access_token'] != null;
     } catch (e) {
+      print('❌ Authentication failed: $e');
       return false;
     }
   }

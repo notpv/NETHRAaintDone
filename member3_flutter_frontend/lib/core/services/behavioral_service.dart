@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../../shared/models/behavioral_data.dart';
 import 'api_service.dart';
 import '../constants/app_constants.dart';
+import 'package:flutter/foundation.dart';
 
 class BehavioralService {
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
@@ -21,56 +22,106 @@ class BehavioralService {
   int _tapCount = 0;
   double _totalSwipeDistance = 0.0;
   bool _isMonitoring = false;
+  bool _disposed = false;
   
   final ApiService _apiService;
   int? _currentUserId;
   String? _currentSessionToken;
+  int _failedSyncCount = 0;
+  static const int _maxFailedSyncs = 5;
   
   BehavioralService(this._apiService);
   
   bool get isMonitoring => _isMonitoring;
   
   void setUserSession(int userId, String? sessionToken) {
+    if (_disposed) return;
+    
     _currentUserId = userId;
     _currentSessionToken = sessionToken;
+    
+    if (kDebugMode) {
+      print('🎯 Behavioral service set for user $userId with session $sessionToken');
+    }
   }
   
   void startMonitoring() {
-    if (_isMonitoring) return;
+    if (_isMonitoring || _disposed) return;
     
-    _isMonitoring = true;
-    _sessionStartTime = DateTime.now();
-    
-    // Start sensor monitoring
-    _accelerometerSubscription = accelerometerEvents.listen((event) {
-      _accelerometerData.add(event);
-      if (_accelerometerData.length > 100) {
-        _accelerometerData.removeAt(0);
+    try {
+      _isMonitoring = true;
+      _sessionStartTime = DateTime.now();
+      _failedSyncCount = 0;
+      
+      // Start sensor monitoring with error handling
+      _startSensorMonitoring();
+      
+      // Start periodic data collection and backend sync
+      _dataCollectionTimer = Timer.periodic(
+        Duration(seconds: AppConstants.trustUpdateIntervalSeconds), 
+        (timer) => _collectAndSyncBehavioralData()
+      );
+      
+      // Start session heartbeat
+      _backendSyncTimer = Timer.periodic(
+        const Duration(seconds: 45), 
+        (timer) => _sendSessionHeartbeat()
+      );
+      
+      if (kDebugMode) {
+        print('✅ Behavioral monitoring started');
       }
-    });
-    
-    _gyroscopeSubscription = gyroscopeEvents.listen((event) {
-      _gyroscopeData.add(event);
-      if (_gyroscopeData.length > 100) {
-        _gyroscopeData.removeAt(0);
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Failed to start behavioral monitoring: $e');
       }
-    });
-    
-    // Start periodic data collection and backend sync
-    _dataCollectionTimer = Timer.periodic(
-      Duration(seconds: AppConstants.trustUpdateIntervalSeconds), 
-      (timer) => _collectAndSyncBehavioralData()
-    );
-    
-    // Start session heartbeat
-    _backendSyncTimer = Timer.periodic(
-      const Duration(seconds: 30), 
-      (timer) => _sendSessionHeartbeat()
-    );
+    }
+  }
+  
+  void _startSensorMonitoring() {
+    try {
+      // Start accelerometer monitoring with error handling
+      _accelerometerSubscription = accelerometerEvents.listen(
+        (event) {
+          if (!_disposed) {
+            _accelerometerData.add(event);
+            if (_accelerometerData.length > 100) {
+              _accelerometerData.removeAt(0);
+            }
+          }
+        },
+        onError: (error) {
+          if (kDebugMode) {
+            print('Accelerometer error: $error');
+          }
+        },
+      );
+      
+      // Start gyroscope monitoring with error handling
+      _gyroscopeSubscription = gyroscopeEvents.listen(
+        (event) {
+          if (!_disposed) {
+            _gyroscopeData.add(event);
+            if (_gyroscopeData.length > 100) {
+              _gyroscopeData.removeAt(0);
+            }
+          }
+        },
+        onError: (error) {
+          if (kDebugMode) {
+            print('Gyroscope error: $error');
+          }
+        },
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Sensor initialization failed: $e');
+      }
+    }
   }
   
   void stopMonitoring() {
-    if (!_isMonitoring) return;
+    if (!_isMonitoring || _disposed) return;
     
     _isMonitoring = false;
     _accelerometerSubscription?.cancel();
@@ -82,10 +133,14 @@ class BehavioralService {
     _gyroscopeSubscription = null;
     _dataCollectionTimer = null;
     _backendSyncTimer = null;
+    
+    if (kDebugMode) {
+      print('🛑 Behavioral monitoring stopped');
+    }
   }
   
   void recordTap(double x, double y, double pressure, Duration duration) {
-    if (!_isMonitoring) return;
+    if (!_isMonitoring || _disposed) return;
     
     _tapCount++;
     _tapData.add(TapData(
@@ -103,7 +158,7 @@ class BehavioralService {
   
   void recordSwipe(double startX, double startY, double endX, double endY, 
                    double velocity, Duration duration) {
-    if (!_isMonitoring) return;
+    if (!_isMonitoring || _disposed) return;
     
     final distance = sqrt(pow(endX - startX, 2) + pow(endY - startY, 2));
     _totalSwipeDistance += distance;
@@ -124,11 +179,15 @@ class BehavioralService {
   }
   
   Future<void> _collectAndSyncBehavioralData() async {
-    if (_currentUserId == null) return;
+    if (_currentUserId == null || _disposed) return;
     
     try {
       final behavioralData = generateBehavioralData();
       final backendData = behavioralData.toBackendFormat(_currentUserId!);
+      
+      if (kDebugMode) {
+        print('Syncing behavioral data to backend...');
+      }
       
       // Send to backend for trust prediction
       final response = await _apiService.predictTrustScore(backendData);
@@ -138,21 +197,50 @@ class BehavioralService {
         final trustScore = response['trust_score']?.toDouble() ?? 50.0;
         final mirageActivated = response['mirage_activated'] == true;
         
+        // Reset failed sync count on success
+        _failedSyncCount = 0;
+        
         // Trigger callbacks for trust updates
         _onTrustScoreUpdate?.call(trustScore, mirageActivated, response);
+        
+        if (kDebugMode) {
+          print('✅ Behavioral sync successful - Trust: $trustScore');
+        }
       }
     } catch (e) {
-      print('Failed to sync behavioral data: $e');
+      _failedSyncCount++;
+      if (kDebugMode) {
+        print('❌ Failed to sync behavioral data (attempt $_failedSyncCount): $e');
+      }
+      
+      // If too many failures, reduce sync frequency
+      if (_failedSyncCount >= _maxFailedSyncs) {
+        _dataCollectionTimer?.cancel();
+        _dataCollectionTimer = Timer.periodic(
+          const Duration(seconds: 30), // Reduced frequency
+          (timer) => _collectAndSyncBehavioralData()
+        );
+        
+        if (kDebugMode) {
+          print('⚠️ Reduced sync frequency due to repeated failures');
+        }
+      }
     }
   }
   
   Future<void> _sendSessionHeartbeat() async {
-    if (_currentSessionToken == null) return;
+    if (_currentSessionToken == null || _disposed) return;
     
     try {
       await _apiService.sendHeartbeat(_currentSessionToken!);
+      
+      if (kDebugMode) {
+        print('💓 Session heartbeat sent');
+      }
     } catch (e) {
-      print('Session heartbeat failed: $e');
+      if (kDebugMode) {
+        print('❌ Session heartbeat failed: $e');
+      }
     }
   }
   
@@ -196,56 +284,91 @@ class BehavioralService {
   double _calculateDeviceTiltVariation() {
     if (_accelerometerData.isEmpty) return 0.3; // Default tilt
     
-    final tilts = _accelerometerData.map((e) => 
-      sqrt(e.x * e.x + e.y * e.y + e.z * e.z));
-    
-    if (tilts.isEmpty) return 0.3;
-    
-    final average = tilts.reduce((a, b) => a + b) / tilts.length;
-    final variance = tilts.map((e) => pow(e - average, 2)).reduce((a, b) => a + b) / tilts.length;
-    
-    return sqrt(variance);
+    try {
+      final tilts = _accelerometerData.map((e) => 
+        sqrt(e.x * e.x + e.y * e.y + e.z * e.z));
+      
+      if (tilts.isEmpty) return 0.3;
+      
+      final average = tilts.reduce((a, b) => a + b) / tilts.length;
+      final variance = tilts.map((e) => pow(e - average, 2)).reduce((a, b) => a + b) / tilts.length;
+      
+      return sqrt(variance);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error calculating device tilt: $e');
+      }
+      return 0.3;
+    }
   }
   
   List<double> _calculateMovementPattern() {
     if (_accelerometerData.isEmpty) return [0.1, 0.2, 0.1];
     
-    final xAvg = _accelerometerData.map((e) => e.x).reduce((a, b) => a + b) / _accelerometerData.length;
-    final yAvg = _accelerometerData.map((e) => e.y).reduce((a, b) => a + b) / _accelerometerData.length;
-    final zAvg = _accelerometerData.map((e) => e.z).reduce((a, b) => a + b) / _accelerometerData.length;
-    
-    return [xAvg, yAvg, zAvg];
+    try {
+      final xAvg = _accelerometerData.map((e) => e.x).reduce((a, b) => a + b) / _accelerometerData.length;
+      final yAvg = _accelerometerData.map((e) => e.y).reduce((a, b) => a + b) / _accelerometerData.length;
+      final zAvg = _accelerometerData.map((e) => e.z).reduce((a, b) => a + b) / _accelerometerData.length;
+      
+      return [xAvg, yAvg, zAvg];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error calculating movement pattern: $e');
+      }
+      return [0.1, 0.2, 0.1];
+    }
   }
   
   double _calculateTypingRhythm() {
     if (_tapData.length < 2) return 200.0; // Default rhythm
     
-    final intervals = <double>[];
-    for (int i = 1; i < _tapData.length; i++) {
-      final interval = _tapData[i].timestamp.difference(_tapData[i-1].timestamp).inMilliseconds;
-      intervals.add(interval.toDouble());
+    try {
+      final intervals = <double>[];
+      for (int i = 1; i < _tapData.length; i++) {
+        final interval = _tapData[i].timestamp.difference(_tapData[i-1].timestamp).inMilliseconds;
+        intervals.add(interval.toDouble());
+      }
+      
+      if (intervals.isEmpty) return 200.0;
+      
+      final average = intervals.reduce((a, b) => a + b) / intervals.length;
+      return average;
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error calculating typing rhythm: $e');
+      }
+      return 200.0;
     }
-    
-    if (intervals.isEmpty) return 200.0;
-    
-    final average = intervals.reduce((a, b) => a + b) / intervals.length;
-    return average;
   }
   
   double _calculateNavigationFlow() {
     // Calculate based on app navigation patterns
-    return 85.0 + (Random().nextDouble() - 0.5) * 20;
+    try {
+      return 85.0 + (Random().nextDouble() - 0.5) * 20;
+    } catch (e) {
+      return 85.0;
+    }
   }
   
   // Callback for trust score updates
   Function(double, bool, Map<String, dynamic>)? _onTrustScoreUpdate;
   
   void setTrustScoreCallback(Function(double, bool, Map<String, dynamic>) callback) {
-    _onTrustScoreUpdate = callback;
+    if (!_disposed) {
+      _onTrustScoreUpdate = callback;
+    }
   }
   
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    
     stopMonitoring();
+    _onTrustScoreUpdate = null;
+    
+    if (kDebugMode) {
+      print('🗑️ Behavioral service disposed');
+    }
   }
 }
 
