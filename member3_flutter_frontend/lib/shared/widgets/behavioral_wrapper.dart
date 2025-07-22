@@ -43,7 +43,7 @@ class _BehavioralWrapperState extends State<BehavioralWrapper> {
   
   void _recordTap(BuildContext context, TapDownDetails details, TrustProvider trustProvider) {
     final position = details.localPosition;
-    final pressure = details.pressure ?? 1.0;
+    final pressure = 1.0; // Default pressure for web platform
     
     trustProvider.recordTap(position.dx, position.dy, pressure);
   }

@@ -210,6 +210,23 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>> terminateSession(String sessionToken) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl${AppConstants.sessionEndpoint}/terminate/$sessionToken'),
+        headers: _headers,
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Session termination failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Network error during session termination: $e');
+    }
+  }
+
   // Mirage Interface APIs
   Future<Map<String, dynamic>> getMirageStatus(int userId) async {
     try {

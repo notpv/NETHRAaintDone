@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -69,12 +70,17 @@ class NethraBankingApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             home: FirebaseNotificationListener(
-              child: FutureBuilder(
-                future: authProvider.checkAuthStatus(),
+              child: FutureBuilder<void>(
+                future: _initializeApp(authProvider),
                 builder: (context, snapshot) {
                   // Show loading screen while checking auth status
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const NethraSplashScreen();
+                  }
+                  
+                  // Handle initialization errors
+                  if (snapshot.hasError) {
+                    return const LoginScreen(); // Fallback to login on error
                   }
                   
                   // Navigate based on authentication status
@@ -88,6 +94,17 @@ class NethraBankingApp extends StatelessWidget {
         },
       ),
     );
+  }
+  
+  Future<void> _initializeApp(AuthProvider authProvider) async {
+    try {
+      await authProvider.checkAuthStatus();
+    } catch (e) {
+      // Log error but don't crash the app
+      if (kDebugMode) {
+        print('⚠️ App initialization error: $e');
+      }
+    }
   }
 }
 

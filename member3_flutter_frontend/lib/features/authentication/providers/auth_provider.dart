@@ -44,13 +44,20 @@ class AuthProvider with ChangeNotifier {
     if (_accessToken != null) {
       _apiService.setAuthToken(_accessToken!);
       
-      // Validate token with backend
-      final isValid = await _apiService.validateToken();
-      if (!isValid) {
-        await logout();
-      } else {
-        // Create new session if authenticated
-        await _createUserSession();
+      // Try to validate token with backend, but don't fail if backend is down
+      try {
+        final isValid = await _apiService.validateToken();
+        if (!isValid) {
+          await logout();
+        } else {
+          // Create new session if authenticated
+          await _createUserSession();
+        }
+      } catch (e) {
+        // Backend might be down, keep user logged in for demo
+        if (kDebugMode) {
+          print('⚠️ Backend validation failed, keeping user logged in for demo: $e');
+        }
       }
     }
     
