@@ -65,19 +65,20 @@ class NethraBankingApp extends StatelessWidget {
       ],
       child: Consumer<AuthProvider>(
         builder: (context, authProvider, child) {
-          // Initialize in background without blocking UI
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _initializeAppInBackground(context, authProvider);
-          });
-          
           return MaterialApp(
             title: 'NETHRA Banking',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             home: FirebaseNotificationListener(
-              child: authProvider.isAuthenticated
-                  ? const DashboardScreen()
-                  : const LoginScreen(),
+             // Initialize in background without blocking UI
+             WidgetsBinding.instance.addPostFrameCallback((_) {
+               _initializeAppInBackground(authProvider);
+             });
+             
+             // Show UI immediately based on current auth status
+             return authProvider.isAuthenticated
+                 ? const DashboardScreen()
+                 : const LoginScreen();
             ),
           );
         },
@@ -85,10 +86,10 @@ class NethraBankingApp extends StatelessWidget {
     );
   }
   
-  void _initializeAppInBackground(BuildContext context, AuthProvider authProvider) async {
+  Future<void> _initializeApp(AuthProvider authProvider) async {
     try {
-      // Initialize without blocking UI
-      await authProvider.checkAuthStatus();
+     // Initialize without blocking UI
+     authProvider.checkAuthStatus();
     } catch (e) {
       // Log error but don't crash the app
       if (kDebugMode) {
@@ -147,3 +148,4 @@ class NethraSplashScreen extends StatelessWidget {
     );
   }
 }
+ void _initializeAppInBackground(AuthProvider authProvider) async {
