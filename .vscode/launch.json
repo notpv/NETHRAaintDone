@@ -1,0 +1,47 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "NETHRA Backend",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/backend/main.py",
+            "cwd": "${workspaceFolder}/backend",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/backend"
+            },
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
+        {
+            "name": "NETHRA Flutter (Debug)",
+            "type": "dart",
+            "request": "launch",
+            "program": "${workspaceFolder}/member3_flutter_frontend/lib/main.dart",
+            "cwd": "${workspaceFolder}/member3_flutter_frontend",
+            "args": ["--debug"]
+        },
+        {
+            "name": "NETHRA Flutter (Profile)",
+            "type": "dart",
+            "request": "launch",
+            "program": "${workspaceFolder}/member3_flutter_frontend/lib/main.dart",
+            "cwd": "${workspaceFolder}/member3_flutter_frontend",
+            "args": ["--profile"]
+        },
+        {
+            "name": "NETHRA Flutter (Release)",
+            "type": "dart",
+            "request": "launch",
+            "program": "${workspaceFolder}/member3_flutter_frontend/lib/main.dart",
+            "cwd": "${workspaceFolder}/member3_flutter_frontend",
+            "args": ["--release"]
+        }
+    ],
+    "compounds": [
+        {
+            "name": "NETHRA Full Stack",
+            "configurations": ["NETHRA Backend", "NETHRA Flutter (Debug)"]
+        }
+    ]
+}

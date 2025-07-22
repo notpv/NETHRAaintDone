@@ -29,7 +29,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final trustProvider = Provider.of<TrustProvider>(context, listen: false);
       trustProvider.startMonitoring();
+      
+      // Initialize user session
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      _initializeUserSession(authProvider);
     });
+  }
+  
+  Future<void> _initializeUserSession(AuthProvider authProvider) async {
+    try {
+      // Get user profile to ensure backend connection
+      await authProvider.apiService.getUserProfile();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Backend connection failed: ${e.toString()}'),
+            backgroundColor: AppTheme.warningColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   @override

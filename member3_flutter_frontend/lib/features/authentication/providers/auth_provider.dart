@@ -9,18 +9,34 @@ class AuthProvider with ChangeNotifier {
   String? _errorMessage;
   String? _userId;
   String? _username;
+  String? _accessToken;
+  final ApiService _apiService = ApiService();
   
   bool get isAuthenticated => _isAuthenticated;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   String? get userId => _userId;
   String? get username => _username;
+  String? get accessToken => _accessToken;
+  ApiService get apiService => _apiService;
   
   Future<void> checkAuthStatus() async {
     final prefs = await SharedPreferences.getInstance();
     _isAuthenticated = prefs.getBool('isAuthenticated') ?? false;
     _userId = prefs.getString('userId');
     _username = prefs.getString('username');
+    _accessToken = prefs.getString('accessToken');
+    
+    if (_accessToken != null) {
+      _apiService.setAuthToken(_accessToken!);
+      
+      // Validate token with backend
+      final isValid = await _apiService.validateToken();
+      if (!isValid) {
+        await logout();
+      }
+    }
+    
     notifyListeners();
   }
   
@@ -30,25 +46,24 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
     
     try {
-      // Demo authentication
-      if (username == AppConstants.demoUsername && password == AppConstants.demoPassword) {
-        await _setAuthenticatedState(true, 'demo_user_id', username);
-        return true;
-      }
+      // API authentication with backend
+      final result = await _apiService.login(username, password);
       
-      // API authentication
-      final apiService = ApiService();
-      final success = await apiService.authenticateUser(username, password);
-      
-      if (success) {
-        await _setAuthenticatedState(true, 'user_id', username);
+      if (result['access_token'] != null) {
+        final userInfo = result['user_info'];
+        await _setAuthenticatedState(
+          true, 
+          userInfo['id'].toString(), 
+          userInfo['username'],
+          result['access_token'],
+        );
         return true;
       } else {
-        _errorMessage = 'Invalid username or password';
+        _errorMessage = result['detail'] ?? 'Invalid username or password';
         return false;
       }
     } catch (e) {
-      _errorMessage = 'Authentication failed. Please try again.';
+      _errorMessage = 'Authentication failed: ${e.toString()}';
       return false;
     } finally {
       _isLoading = false;
@@ -57,17 +72,24 @@ class AuthProvider with ChangeNotifier {
   }
   
   Future<void> logout() async {
-    await _setAuthenticatedState(false, null, null);
+    try {
+      await _apiService.logout();
+    } catch (e) {
+      // Ignore logout errors
+    }
+    await _setAuthenticatedState(false, null, null, null);
   }
   
-  Future<void> _setAuthenticatedState(bool isAuthenticated, String? userId, String? username) async {
+  Future<void> _setAuthenticatedState(bool isAuthenticated, String? userId, String? username, String? accessToken) async {
     final prefs = await SharedPreferences.getInstance();
     
     _isAuthenticated = isAuthenticated;
     _userId = userId;
     _username = username;
+    _accessToken = accessToken;
     
     await prefs.setBool('isAuthenticated', isAuthenticated);
+    
     if (userId != null) {
       await prefs.setString('userId', userId);
     } else {
@@ -78,6 +100,13 @@ class AuthProvider with ChangeNotifier {
       await prefs.setString('username', username);
     } else {
       await prefs.remove('username');
+    }
+    
+    if (accessToken != null) {
+      await prefs.setString('accessToken', accessToken);
+      _apiService.setAuthToken(accessToken);
+    } else {
+      await prefs.remove('accessToken');
     }
     
     notifyListeners();

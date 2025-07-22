@@ -1,8 +1,9 @@
 class AppConstants {
   static const String appName = 'NETHRA Banking';
-  static const String baseUrl = 'http://10.0.2.2:8000'; // Android emulator
+  static const String baseUrl = 'http://127.0.0.1:8000'; // Local development
   // For iOS simulator, use: 'http://127.0.0.1:8000'
   // For physical device, use your computer's IP: 'http://192.168.1.XXX:8000'
+  // For Android emulator, use: 'http://10.0.2.2:8000'
   
   // Trust Score Thresholds
   static const double highTrustThreshold = 80.0;
@@ -13,12 +14,20 @@ class AppConstants {
   // Security Settings
   static const int maxFailedAttempts = 3;
   static const int sessionTimeoutMinutes = 30;
-  static const int trustUpdateIntervalSeconds = 5;
+  static const int trustUpdateIntervalSeconds = 3;
   
   // Demo Data
   static const String demoUsername = 'demo_user';
   static const String demoPassword = 'demo123';
   static const double demoAccountBalance = 25750.50;
+  
+  // API Endpoints
+  static const String authEndpoint = '/api/auth';
+  static const String trustEndpoint = '/api/trust';
+  static const String userEndpoint = '/api/user';
+  static const String monitoringEndpoint = '/api/monitoring';
+  static const String sessionEndpoint = '/api/session';
+  static const String mirageEndpoint = '/api/mirage';
   
   // Personalization Settings
   static const int minLearningInteractions = 20;

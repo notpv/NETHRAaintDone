@@ -5,11 +5,14 @@ import '../../../core/services/behavioral_service.dart';
 import '../../../core/services/api_service.dart';
 import '../../../core/services/personalization_service.dart';
 import '../../../shared/models/trust_data.dart';
+import '../../authentication/providers/auth_provider.dart';
 
 class TrustProvider with ChangeNotifier {
   late final TrustService _trustService;
   late final PersonalizationService _personalizationService;
+  late final ApiService _apiService;
   StreamSubscription<TrustData>? _trustSubscription;
+  Timer? _trustUpdateTimer;
   
   double _trustScore = 85.0;
   TrustLevel _trustLevel = TrustLevel.high;
@@ -19,11 +22,14 @@ class TrustProvider with ChangeNotifier {
   bool _isPersonalized = false;
   double _personalizedTrustScore = 85.0;
   double _standardTrustScore = 85.0;
+  String? _currentSessionToken;
+  AuthProvider? _authProvider;
   
-  TrustProvider() {
+  TrustProvider({AuthProvider? authProvider}) {
+    _authProvider = authProvider;
     final behavioralService = BehavioralService();
-    final apiService = ApiService();
-    _trustService = TrustService(behavioralService, apiService);
+    _apiService = authProvider?.apiService ?? ApiService();
+    _trustService = TrustService(behavioralService, _apiService);
     _personalizationService = PersonalizationService();
     _initializePersonalization();
   }
@@ -36,6 +42,7 @@ class TrustProvider with ChangeNotifier {
   bool get isPersonalized => _isPersonalized;
   double get personalizedTrustScore => _personalizedTrustScore;
   double get standardTrustScore => _standardTrustScore;
+  String? get currentSessionToken => _currentSessionToken;
   
   Future<void> _initializePersonalization() async {
     await _personalizationService.initialize();
@@ -43,8 +50,18 @@ class TrustProvider with ChangeNotifier {
     notifyListeners();
   }
   
-  void startMonitoring() {
+  Future<void> startMonitoring() async {
     if (_isMonitoring) return;
+    
+    try {
+      // Create session with backend
+      final sessionResult = await _apiService.createSession();
+      _currentSessionToken = sessionResult['session_token'];
+    } catch (e) {
+      if (kDebugMode) {
+        print('Failed to create session: $e');
+      }
+    }
     
     _isMonitoring = true;
     _trustService.startTrustMonitoring();
@@ -67,7 +84,77 @@ class TrustProvider with ChangeNotifier {
       }
     });
     
+    // Start periodic trust updates with backend
+    _trustUpdateTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _updateTrustWithBackend();
+    });
+    
     notifyListeners();
+  }
+  
+  Future<void> _updateTrustWithBackend() async {
+    try {
+      final behavioralData = _trustService.getLatestBehavioralData();
+      if (behavioralData != null && _authProvider?.userId != null) {
+        final userId = int.tryParse(_authProvider!.userId!) ?? 1;
+        
+        // Prepare behavioral data for backend
+        final backendData = {
+          'user_id': userId,
+          'avg_pressure': behavioralData.averageTapPressure,
+          'avg_swipe_velocity': behavioralData.averageSwipeVelocity,
+          'avg_swipe_duration': behavioralData.averageTapDuration / 1000,
+          'accel_stability': behavioralData.deviceTiltVariation,
+          'gyro_stability': behavioralData.deviceTiltVariation * 0.8,
+          'touch_frequency': behavioralData.tapCount / (behavioralData.sessionDuration / 60),
+          'timestamp': behavioralData.timestamp.toIso8601String(),
+        };
+        
+        // Get trust prediction from backend
+        final result = await _apiService.predictTrustScore(backendData);
+        
+        if (result['success'] == true) {
+          _trustScore = result['trust_score']?.toDouble() ?? _trustScore;
+          _personalizedTrustScore = result['trust_score']?.toDouble() ?? _personalizedTrustScore;
+          _shouldShowMirage = result['mirage_activated'] == true;
+          _isPersonalized = result['learning_phase'] == false;
+          
+          // Update risk factors based on backend response
+          if (result['security_action'] == 'maximum_security') {
+            _riskFactors = ['High security threat detected', 'Behavioral anomaly'];
+          } else if (result['security_action'] == 'elevated_security') {
+            _riskFactors = ['Unusual behavior pattern'];
+          } else {
+            _riskFactors = [];
+          }
+          
+          _trustLevel = _getTrustLevelFromScore(_trustScore);
+          notifyListeners();
+        }
+      }
+      
+      // Send heartbeat if we have a session
+      if (_currentSessionToken != null) {
+        try {
+          await _apiService.sendHeartbeat(_currentSessionToken!);
+        } catch (e) {
+          if (kDebugMode) {
+            print('Heartbeat failed: $e');
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Backend trust update failed: $e');
+      }
+    }
+  }
+  
+  TrustLevel _getTrustLevelFromScore(double score) {
+    if (score >= 80) return TrustLevel.high;
+    if (score >= 60) return TrustLevel.medium;
+    if (score >= 40) return TrustLevel.low;
+    return TrustLevel.critical;
   }
   
   Future<void> _updateTrustScores(TrustData trustData) async {
@@ -98,15 +185,15 @@ class TrustProvider with ChangeNotifier {
     _trustService.stopTrustMonitoring();
     _trustSubscription?.cancel();
     _trustSubscription = null;
+    _trustUpdateTimer?.cancel();
+    _trustUpdateTimer = null;
     
     notifyListeners();
   }
   
   void forceUpdateTrust() {
-    // Force an immediate trust score update
-    _trustService.recordSecurityEvent('MANUAL_UPDATE', {
-      'timestamp': DateTime.now().toIso8601String(),
-    });
+    // Force an immediate trust score update with backend
+    _updateTrustWithBackend();
   }
   
   void simulateThreat() {

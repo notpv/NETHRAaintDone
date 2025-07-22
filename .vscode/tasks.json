@@ -1,0 +1,126 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Start NETHRA Backend",
+            "type": "shell",
+            "command": "python",
+            "args": ["main.py"],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Initialize NETHRA Database",
+            "type": "shell",
+            "command": "python",
+            "args": ["init_database.py"],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Test Backend Imports",
+            "type": "shell",
+            "command": "python",
+            "args": ["test_imports.py"],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Start Flutter App",
+            "type": "shell",
+            "command": "flutter",
+            "args": ["run"],
+            "options": {
+                "cwd": "${workspaceFolder}/member3_flutter_frontend"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Flutter Clean & Get",
+            "type": "shell",
+            "command": "flutter",
+            "args": ["clean", "&&", "flutter", "pub", "get"],
+            "options": {
+                "cwd": "${workspaceFolder}/member3_flutter_frontend"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Flutter Doctor",
+            "type": "shell",
+            "command": "flutter",
+            "args": ["doctor", "-v"],
+            "options": {
+                "cwd": "${workspaceFolder}/member3_flutter_frontend"
+            },
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Setup Python Virtual Environment",
+            "type": "shell",
+            "command": "python",
+            "args": ["-m", "venv", "venv"],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Install Python Dependencies",
+            "type": "shell",
+            "command": "pip",
+            "args": ["install", "-r", "requirements.txt"],
+            "options": {
+                "cwd": "${workspaceFolder}/backend"
+            },
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "panel": "new"
+            }
+        }
+    ]
+}

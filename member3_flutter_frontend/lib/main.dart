@@ -37,7 +37,11 @@ class NethraBankingApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => TrustProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, TrustProvider>(
+          create: (context) => TrustProvider(),
+          update: (context, authProvider, previous) => 
+            TrustProvider(authProvider: authProvider),
+        ),
         Provider(create: (_) => PersonalizationService()),
         ChangeNotifierProxyProvider<PersonalizationService, PersonalizationProvider>(
           create: (context) => PersonalizationProvider(
@@ -46,27 +50,89 @@ class NethraBankingApp extends StatelessWidget {
           update: (context, personalizationService, previous) => 
             PersonalizationProvider(personalizationService),
         ),
-        Provider(create: (_) => ApiService()),
         Provider(create: (_) => BehavioralService()),
-        ProxyProvider2<BehavioralService, ApiService, TrustService>(
+        ProxyProvider<BehavioralService, TrustService>(
           create: (context) => TrustService(
             Provider.of<BehavioralService>(context, listen: false),
-            Provider.of<ApiService>(context, listen: false),
+            ApiService(),
           ),
-          update: (context, behavioralService, apiService, previous) => 
-            TrustService(behavioralService, apiService),
+          update: (context, behavioralService, previous) => 
+            TrustService(behavioralService, ApiService()),
         ),
       ],
-      child: MaterialApp(
-        title: 'NETHRA Banking',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: Consumer<AuthProvider>(
-          builder: (context, authProvider, child) {
-            return authProvider.isAuthenticated
-                ? const DashboardScreen()
-                : const LoginScreen();
-          },
+      child: Consumer<AuthProvider>(
+        builder: (context, authProvider, child) {
+          return MaterialApp(
+            title: 'NETHRA Banking',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            home: FutureBuilder(
+              future: authProvider.checkAuthStatus(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                
+                return authProvider.isAuthenticated
+                    ? const DashboardScreen()
+                    : const LoginScreen();
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class NethraSplashScreen extends StatelessWidget {
+  const NethraSplashScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.primaryColor,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.security,
+                size: 60,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              'NETHRA',
+              style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'AI-Powered Banking Security',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ),
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+            ),
+          ],
         ),
       ),
     );

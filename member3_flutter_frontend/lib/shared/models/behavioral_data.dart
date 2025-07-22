@@ -44,6 +44,28 @@ class BehavioralData {
     };
   }
   
+  // Convert to backend API format
+  Map<String, dynamic> toBackendFormat(int userId) {
+    return {
+      'user_id': userId,
+      'avg_pressure': averageTapPressure,
+      'avg_swipe_velocity': averageSwipeVelocity,
+      'avg_swipe_duration': averageTapDuration / 1000, // Convert to seconds
+      'accel_stability': deviceTiltVariation,
+      'gyro_stability': deviceTiltVariation * 0.8, // Simulate gyro data
+      'touch_frequency': sessionDuration > 0 ? tapCount / (sessionDuration / 60) : 0, // Per minute
+      'timestamp': timestamp.toIso8601String(),
+      'device_info': {
+        'session_duration': sessionDuration,
+        'total_swipes': swipeCount,
+        'total_distance': totalSwipeDistance,
+        'movement_pattern': movementPattern,
+        'typing_rhythm': typingRhythm,
+        'navigation_flow': navigationFlow,
+      }
+    };
+  }
+  
   factory BehavioralData.fromJson(Map<String, dynamic> json) {
     return BehavioralData(
       sessionDuration: json['session_duration'],

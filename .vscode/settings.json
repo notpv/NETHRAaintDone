@@ -1,0 +1,28 @@
+{
+    "python.defaultInterpreterPath": "./backend/venv/Scripts/python.exe",
+    "python.terminal.activateEnvironment": true,
+    "dart.flutterSdkPath": "C:\\src\\flutter",
+    "files.exclude": {
+        "**/venv/": true,
+        "**/.dart_tool/": true,
+        "**/build/": true,
+        "**/__pycache__/": true,
+        "**/*.pyc": true,
+        "**/node_modules/": true
+    },
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "dart.debugExternalPackageLibraries": false,
+    "dart.debugSdkLibraries": false,
+    "flutter.hot-reload-on-save": true,
+    "editor.formatOnSave": true,
+    "python.formatting.provider": "black",
+    "[dart]": {
+        "editor.formatOnSave": true,
+        "editor.rulers": [80]
+    },
+    "[python]": {
+        "editor.rulers": [88]
+    }
+}

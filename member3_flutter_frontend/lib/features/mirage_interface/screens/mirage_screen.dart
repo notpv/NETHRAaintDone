@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/themes/app_theme.dart';
 import '../../../shared/widgets/behavioral_wrapper.dart';
 import '../../trust_monitor/providers/trust_provider.dart';
+import '../../authentication/providers/auth_provider.dart';
 
 class MirageScreen extends StatefulWidget {
   const MirageScreen({super.key});
@@ -19,6 +20,8 @@ class _MirageScreenState extends State<MirageScreen>
   bool _showChallenge = false;
   int _challengeStep = 0;
   final List<bool> _challengeResponses = [false, false, false];
+  Map<String, dynamic>? _fakeAccountData;
+  bool _loadingFakeData = true;
 
   @override
   void initState() {
@@ -34,6 +37,7 @@ class _MirageScreenState extends State<MirageScreen>
 
     // Start the mirage sequence
     _startMirageSequence();
+    _loadFakeAccountData();
   }
 
   @override
@@ -54,6 +58,55 @@ class _MirageScreenState extends State<MirageScreen>
       _showChallenge = true;
     });
     _fadeController.forward();
+  }
+  
+  void _loadFakeAccountData() async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      if (authProvider.userId != null) {
+        final userId = int.tryParse(authProvider.userId!) ?? 1;
+        final fakeData = await authProvider.apiService.getFakeAccountData(userId);
+        
+        setState(() {
+          _fakeAccountData = fakeData;
+          _loadingFakeData = false;
+        });
+      }
+    } catch (e) {
+      // Use fallback fake data
+      setState(() {
+        _fakeAccountData = _generateFallbackFakeData();
+        _loadingFakeData = false;
+      });
+    }
+  }
+  
+  Map<String, dynamic> _generateFallbackFakeData() {
+    return {
+      'account_balance': 150000.00,
+      'available_balance': 138000.00,
+      'recent_transactions': [
+        {
+          'id': 'TXN_FAKE_001',
+          'type': 'Business Revenue',
+          'amount': 50000,
+          'direction': 'credit',
+          'timestamp': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
+          'description': 'Large Business Payment - Mirage Generated',
+        },
+        {
+          'id': 'TXN_FAKE_002',
+          'type': 'Investment Return',
+          'amount': 25000,
+          'direction': 'credit',
+          'timestamp': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
+          'description': 'Stock Portfolio Gains - Mirage Generated',
+        }
+      ],
+      'account_number': '****8847',
+      'account_type': 'Premium Business Checking',
+      'mirage_active': true,
+    };
   }
 
   @override
@@ -164,6 +217,9 @@ class _MirageScreenState extends State<MirageScreen>
   }
 
   Widget _buildFakeAccountCard() {
+    final balance = _fakeAccountData?['account_balance'] ?? 0.0;
+    final accountType = _fakeAccountData?['account_type'] ?? 'Premium Account';
+    
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -181,7 +237,7 @@ class _MirageScreenState extends State<MirageScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Account Balance',
+            accountType,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.w600,
@@ -190,22 +246,31 @@ class _MirageScreenState extends State<MirageScreen>
           const SizedBox(height: 16),
           Row(
             children: [
-              Container(
-                width: 120,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.3),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    'Loading...',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white,
+              if (_loadingFakeData)
+                Container(
+                  width: 120,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Loading...',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Colors.white,
+                      ),
                     ),
                   ),
+                )
+              else
+                Text(
+                  '\$${balance.toStringAsFixed(2)}',
+                  style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
               const Spacer(),
               Icon(
                 Icons.refresh,
@@ -220,6 +285,8 @@ class _MirageScreenState extends State<MirageScreen>
   }
 
   Widget _buildFakeTransactionList() {
+    final transactions = _fakeAccountData?['recent_transactions'] as List<dynamic>? ?? [];
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -243,7 +310,10 @@ class _MirageScreenState extends State<MirageScreen>
             ),
           ),
           const SizedBox(height: 16),
-          ...List.generate(3, (index) => _buildFakeTransactionItem(index)),
+          if (transactions.isEmpty)
+            ...List.generate(3, (index) => _buildFakeTransactionItem(index))
+          else
+            ...transactions.map((transaction) => _buildFakeTransactionItemFromData(transaction)).toList(),
         ],
       ),
     );
@@ -327,6 +397,66 @@ class _MirageScreenState extends State<MirageScreen>
                 color: AppTheme.errorColor,
               ),
             ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildFakeTransactionItemFromData(Map<String, dynamic> transaction) {
+    final amount = transaction['amount'] ?? 0;
+    final isCredit = transaction['direction'] == 'credit';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppTheme.successColor.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppTheme.successColor.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isCredit ? Icons.arrow_downward : Icons.arrow_upward,
+              color: AppTheme.successColor,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  transaction['type'] ?? 'Unknown Transaction',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  transaction['description'] ?? 'Mirage Generated',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${isCredit ? '+' : '-'} \$${amount.toStringAsFixed(2)}',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: isCredit ? AppTheme.successColor : AppTheme.errorColor,
+            ),
+          ),
         ],
       ),
     );
