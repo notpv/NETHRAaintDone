@@ -46,7 +46,7 @@ class AccountCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '\$${AppConstants.demoAccountBalance.toStringAsFixed(2)}',
+                    '${AppConstants.currencySymbol}${_formatIndianCurrency(AppConstants.demoAccountBalance)}',
                     style: Theme.of(context).textTheme.displayMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -193,5 +193,18 @@ class AccountCard extends StatelessWidget {
         ],
       ),
     );
+  }
+  
+  String _formatIndianCurrency(double amount) {
+    // Format number in Indian style (lakhs, crores)
+    if (amount >= 10000000) {
+      return '${(amount / 10000000).toStringAsFixed(2)} Cr';
+    } else if (amount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(2)} L';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(2)} K';
+    } else {
+      return amount.toStringAsFixed(2);
+    }
   }
 }

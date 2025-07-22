@@ -7,34 +7,29 @@ import '../providers/auth_provider.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/behavioral_wrapper.dart';
-import '../screens/register_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isPasswordVisible = false;
-  
-  @override
-  void initState() {
-    super.initState();
-    // Initialize auth provider
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<AuthProvider>(context, listen: false).initialize();
-    });
-  }
+  bool _isConfirmPasswordVisible = false;
   
   @override
   void dispose() {
     _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
   
@@ -43,6 +38,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return BehavioralWrapper(
       child: Scaffold(
         backgroundColor: AppTheme.backgroundColor,
+        appBar: AppBar(
+          title: const Text('Create Account'),
+          backgroundColor: AppTheme.backgroundColor,
+        ),
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -51,18 +50,14 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 60),
-                  _buildLogo(),
-                  const SizedBox(height: 48),
-                  _buildWelcomeText(),
+                  const SizedBox(height: 20),
+                  _buildHeader(),
                   const SizedBox(height: 32),
-                  _buildLoginForm(),
+                  _buildRegistrationForm(),
                   const SizedBox(height: 24),
-                  _buildLoginButton(),
-                  const SizedBox(height: 16),
                   _buildRegisterButton(),
                   const SizedBox(height: 16),
-                  _buildDemoInfo(),
+                  _buildLoginLink(),
                   const SizedBox(height: 32),
                   _buildSecurityInfo(),
                 ],
@@ -74,12 +69,12 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
   
-  Widget _buildLogo() {
+  Widget _buildHeader() {
     return Column(
       children: [
         Container(
-          width: 80,
-          height: 80,
+          width: 60,
+          height: 60,
           decoration: const BoxDecoration(
             gradient: LinearGradient(
               colors: [AppTheme.primaryColor, AppTheme.accentColor],
@@ -89,51 +84,30 @@ class _LoginScreenState extends State<LoginScreen> {
             shape: BoxShape.circle,
           ),
           child: const Icon(
-            Icons.security,
-            size: 40,
+            Icons.person_add,
+            size: 30,
             color: Colors.white,
           ),
-        ).animate().scale(delay: 300.ms, duration: 600.ms),
+        ).animate().scale(delay: 200.ms),
         const SizedBox(height: 16),
         Text(
-          'NETHRA',
-          style: Theme.of(context).textTheme.displayMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: AppTheme.primaryColor,
-          ),
-        ).animate().fadeIn(delay: 600.ms),
-        const SizedBox(height: 8),
-        Text(
-          'Where Trust Meets Intelligence',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppTheme.textSecondary,
-          ),
-        ).animate().fadeIn(delay: 900.ms),
-      ],
-    );
-  }
-  
-  Widget _buildWelcomeText() {
-    return Column(
-      children: [
-        Text(
-          'Welcome Back',
+          'Join NETHRA',
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
             fontWeight: FontWeight.bold,
           ),
-        ).animate().slideX(delay: 300.ms, begin: -0.3),
+        ).animate().fadeIn(delay: 400.ms),
         const SizedBox(height: 8),
         Text(
-          'Sign in to your secure banking account',
+          'Create your secure banking account',
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             color: AppTheme.textSecondary,
           ),
-        ).animate().slideX(delay: 500.ms, begin: 0.3),
+        ).animate().fadeIn(delay: 600.ms),
       ],
     );
   }
   
-  Widget _buildLoginForm() {
+  Widget _buildRegistrationForm() {
     return Column(
       children: [
         CustomTextField(
@@ -142,11 +116,30 @@ class _LoginScreenState extends State<LoginScreen> {
           prefixIcon: Icons.person_outline,
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'Please enter your username';
+              return 'Please enter a username';
+            }
+            if (value.length < 3) {
+              return 'Username must be at least 3 characters';
             }
             return null;
           },
-        ).animate().slideY(delay: 700.ms, begin: 0.3),
+        ).animate().slideY(delay: 800.ms, begin: 0.3),
+        const SizedBox(height: 16),
+        CustomTextField(
+          controller: _emailController,
+          label: 'Email',
+          prefixIcon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter your email';
+            }
+            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+              return 'Please enter a valid email';
+            }
+            return null;
+          },
+        ).animate().slideY(delay: 1000.ms, begin: 0.3),
         const SizedBox(height: 16),
         CustomTextField(
           controller: _passwordController,
@@ -166,86 +159,70 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           validator: (value) {
             if (value == null || value.isEmpty) {
-              return 'Please enter your password';
+              return 'Please enter a password';
+            }
+            if (value.length < 8) {
+              return 'Password must be at least 8 characters';
             }
             return null;
           },
-        ).animate().slideY(delay: 900.ms, begin: 0.3),
+        ).animate().slideY(delay: 1200.ms, begin: 0.3),
+        const SizedBox(height: 16),
+        CustomTextField(
+          controller: _confirmPasswordController,
+          label: 'Confirm Password',
+          prefixIcon: Icons.lock_outline,
+          obscureText: !_isConfirmPasswordVisible,
+          suffixIcon: IconButton(
+            icon: Icon(
+              _isConfirmPasswordVisible ? Icons.visibility_off : Icons.visibility,
+              color: AppTheme.textSecondary,
+            ),
+            onPressed: () {
+              setState(() {
+                _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+              });
+            },
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please confirm your password';
+            }
+            if (value != _passwordController.text) {
+              return 'Passwords do not match';
+            }
+            return null;
+          },
+        ).animate().slideY(delay: 1400.ms, begin: 0.3),
       ],
     );
   }
   
-  Widget _buildLoginButton() {
+  Widget _buildRegisterButton() {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
         return CustomButton(
-          text: 'Sign In',
+          text: 'Create Account',
           isLoading: authProvider.isLoading,
-          onPressed: () => _handleLogin(context, authProvider),
-        ).animate().slideY(delay: 1100.ms, begin: 0.3);
+          onPressed: () => _handleRegister(context, authProvider),
+        ).animate().slideY(delay: 1600.ms, begin: 0.3);
       },
     );
   }
   
-  Widget _buildRegisterButton() {
+  Widget _buildLoginLink() {
     return TextButton(
       onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const RegisterScreen()),
-        );
+        Navigator.pop(context);
       },
       child: Text(
-        'Don\'t have an account? Register here',
+        'Already have an account? Sign in here',
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: AppTheme.primaryColor,
           fontWeight: FontWeight.w600,
         ),
       ),
-    ).animate().fadeIn(delay: 1200.ms);
-  }
-  
-  Widget _buildDemoInfo() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.primaryColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppTheme.primaryColor.withOpacity(0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.info_outline,
-                color: AppTheme.primaryColor,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Demo Credentials',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppTheme.primaryColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Username: demo_user\nPassword: demo123',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontFamily: 'monospace',
-              color: AppTheme.textPrimary,
-            ),
-          ),
-        ],
-      ),
-    ).animate().fadeIn(delay: 1300.ms);
+    ).animate().fadeIn(delay: 1800.ms);
   }
   
   Widget _buildSecurityInfo() {
@@ -266,7 +243,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Advanced Security',
+                'Your Security Matters',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   color: AppTheme.successColor,
                   fontWeight: FontWeight.w600,
@@ -276,33 +253,40 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'NETHRA monitors your behavioral patterns to ensure secure access to your account.',
+            'NETHRA will learn your unique behavioral patterns to provide personalized security that adapts to how you naturally interact with your device.',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: AppTheme.textSecondary,
             ),
           ),
         ],
       ),
-    ).animate().fadeIn(delay: 1500.ms);
+    ).animate().fadeIn(delay: 2000.ms);
   }
   
-  Future<void> _handleLogin(BuildContext context, AuthProvider authProvider) async {
+  Future<void> _handleRegister(BuildContext context, AuthProvider authProvider) async {
     if (_formKey.currentState?.validate() ?? false) {
-      final success = await authProvider.login(
+      final success = await authProvider.register(
         _usernameController.text.trim(),
+        _emailController.text.trim(),
         _passwordController.text.trim(),
       );
       
       if (success) {
         if (context.mounted) {
           HapticFeedback.heavyImpact();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Account created successfully!'),
+              backgroundColor: AppTheme.successColor,
+            ),
+          );
           // Navigation will be handled by main.dart based on auth state
         }
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(authProvider.errorMessage ?? 'Login failed'),
+              content: Text(authProvider.errorMessage ?? 'Registration failed'),
               backgroundColor: AppTheme.errorColor,
             ),
           );

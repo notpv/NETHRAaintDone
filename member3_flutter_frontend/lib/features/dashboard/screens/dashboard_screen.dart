@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/themes/app_theme.dart';
-import '../../../core/services/trust_service.dart';
 import '../../../shared/widgets/behavioral_wrapper.dart';
 import '../../../shared/widgets/trust_indicator.dart';
 import '../../../shared/widgets/account_card.dart';
@@ -27,24 +26,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final trustProvider = Provider.of<TrustProvider>(context, listen: false);
-      trustProvider.startMonitoring();
-      
-      // Initialize user session
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      _initializeUserSession(authProvider);
+      _initializeServices();
     });
+  }
+  
+  Future<void> _initializeServices() async {
+    final trustProvider = Provider.of<TrustProvider>(context, listen: false);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    // Start trust monitoring
+    await trustProvider.startMonitoring();
+    
+    // Initialize user session and profile
+    await _initializeUserSession(authProvider);
   }
   
   Future<void> _initializeUserSession(AuthProvider authProvider) async {
     try {
       // Get user profile to ensure backend connection
       await authProvider.apiService.getUserProfile();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('Connected to NETHRA backend'),
+              ],
+            ),
+            backgroundColor: AppTheme.successColor,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Backend connection failed: ${e.toString()}'),
+            content: Row(
+              children: [
+                const Icon(Icons.warning, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Backend connection issue: Using demo mode')),
+              ],
+            ),
             backgroundColor: AppTheme.warningColor,
             duration: const Duration(seconds: 3),
           ),
@@ -129,23 +156,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
         IconButton(
           icon: const Icon(Icons.notifications_outlined),
           onPressed: () {
-            // Show notifications
+            _showNotificationCenter(context);
           },
         ),
         IconButton(
-          icon: const Icon(Icons.settings_outlined),
+          icon: const Icon(Icons.psychology),
           onPressed: () {
-            // Show settings
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const PersonalizationDemoScreen(),
+              ),
+            );
           },
         ),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert),
           onSelected: (value) {
-            if (value == 'logout') {
-              _handleLogout(context);
+            switch (value) {
+              case 'profile':
+                _showUserProfile(context);
+                break;
+              case 'delete_account':
+                _showDeleteAccountDialog(context);
+                break;
+              case 'logout':
+                _handleLogout(context);
+                break;
             }
           },
           itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: 'profile',
+              child: Row(
+                children: [
+                  Icon(Icons.person),
+                  SizedBox(width: 8),
+                  Text('Profile'),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'delete_account',
+              child: Row(
+                children: [
+                  Icon(Icons.delete_forever, color: AppTheme.errorColor),
+                  SizedBox(width: 8),
+                  Text('Delete Account', style: TextStyle(color: AppTheme.errorColor)),
+                ],
+              ),
+            ),
             const PopupMenuItem(
               value: 'logout',
               child: Row(
@@ -192,13 +252,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       },
       onPayBills: () {
-        // Handle pay bills
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bill payment feature coming soon!')),
+        );
       },
       onDeposit: () {
-        // Handle deposit
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Deposit feature coming soon!')),
+        );
       },
       onMoreActions: () {
-        // Handle more actions
+        _showMoreActionsDialog(context);
       },
     );
   }
@@ -244,8 +308,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _buildInsightItem(
             icon: Icons.check_circle,
             title: 'Behavioral Authentication',
-            subtitle: 'Active and monitoring',
-            color: AppTheme.successColor,
+            subtitle: trustProvider.isMonitoring ? 'Active and monitoring' : 'Initializing...',
+            color: trustProvider.isMonitoring ? AppTheme.successColor : AppTheme.warningColor,
           ),
           const SizedBox(height: 12),
           _buildInsightItem(
@@ -256,10 +320,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 12),
           _buildInsightItem(
-            icon: Icons.device_hub,
-            title: 'Device Recognition',
-            subtitle: 'Trusted device',
-            color: AppTheme.accentColor,
+            icon: Icons.psychology,
+            title: 'Personalization',
+            subtitle: trustProvider.isPersonalized ? 'Fully adapted' : 'Learning your patterns',
+            color: trustProvider.isPersonalized ? AppTheme.successColor : AppTheme.accentColor,
           ),
         ],
       ),
@@ -315,6 +379,169 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (trustScore >= 60) return AppTheme.accentColor;
     if (trustScore >= 40) return AppTheme.warningColor;
     return AppTheme.errorColor;
+  }
+  
+  void _showNotificationCenter(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Security Notifications',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Firebase notifications will appear here in real-time when security events occur.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _showUserProfile(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('User Profile'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Username: ${authProvider.username ?? 'N/A'}'),
+            Text('Email: ${authProvider.email ?? 'N/A'}'),
+            Text('User ID: ${authProvider.userId ?? 'N/A'}'),
+            const SizedBox(height: 16),
+            Text(
+              'Account created and managed through NETHRA backend',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.warning, color: AppTheme.errorColor),
+            const SizedBox(width: 8),
+            const Text('Delete Account'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final success = await authProvider.deleteAccount();
+              
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? 'Account deleted successfully' : 'Failed to delete account'),
+                    backgroundColor: success ? AppTheme.successColor : AppTheme.errorColor,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.errorColor,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showMoreActionsDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'More Actions',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.psychology),
+              title: const Text('Personalization Demo'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PersonalizationDemoScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.security),
+              title: const Text('Trust Monitor'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TrustMonitorScreen(),
+                  ),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.help),
+              title: const Text('Help & Support'),
+              onTap: () {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Help feature coming soon!')),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _handleLogout(BuildContext context) {

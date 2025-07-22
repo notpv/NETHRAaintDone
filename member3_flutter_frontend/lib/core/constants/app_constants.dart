@@ -5,21 +5,15 @@ class AppConstants {
   // For physical device, use your computer's IP: 'http://192.168.1.XXX:8000'
   // For Android emulator, use: 'http://10.0.2.2:8000'
   
-  // Trust Score Thresholds
-  static const double highTrustThreshold = 80.0;
-  static const double mediumTrustThreshold = 60.0;
-  static const double lowTrustThreshold = 40.0;
-  static const double mirageActivationThreshold = 50.0;
-  
-  // Security Settings
+  // Security Settings - Dynamic thresholds removed, now calculated by backend
   static const int maxFailedAttempts = 3;
-  static const int sessionTimeoutMinutes = 30;
+  static const int sessionTimeoutMinutes = 10; // Updated from 30 to 10
   static const int trustUpdateIntervalSeconds = 3;
   
-  // Demo Data
+  // Demo Data - Updated to Indian Rupees
   static const String demoUsername = 'demo_user';
   static const String demoPassword = 'demo123';
-  static const double demoAccountBalance = 25750.50;
+  static const double demoAccountBalance = 2075000.50; // ₹20,75,000.50
   
   // API Endpoints
   static const String authEndpoint = '/api/auth';
@@ -40,4 +34,13 @@ class AppConstants {
   static const int successColorValue = 0xFF4CAF50;
   static const int warningColorValue = 0xFFFF9800;
   static const int errorColorValue = 0xFFE53935;
+  
+  // Currency Settings
+  static const String currencySymbol = '₹';
+  static const String currencyCode = 'INR';
+  
+  // Firebase Configuration
+  static const String firebaseProjectId = 'nethra-banking-security';
+  static const String firebaseSenderId = '123456789';
+  static const String firebaseAppId = '1:123456789:android:abcdef';
 }

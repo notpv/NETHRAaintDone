@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/themes/app_theme.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/behavioral_wrapper.dart';
 import '../../../shared/widgets/custom_button.dart';
 import '../../../shared/widgets/custom_text_field.dart';
@@ -123,7 +124,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                     ),
                   ),
                   Text(
-                    '\$25,750.50',
+                    '${AppConstants.currencySymbol}${_formatIndianCurrency(AppConstants.demoAccountBalance)}',
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -207,7 +208,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
               ),
               _buildQuickTransferButton(
                 icon: Icons.phone,
-                label: 'Phone',
+                label: 'UPI',
                 onTap: () {},
               ),
             ],
@@ -290,8 +291,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
           const SizedBox(height: 16),
           CustomTextField(
             controller: _amountController,
-            label: 'Amount',
-            prefixIcon: Icons.attach_money,
+            label: 'Amount (${AppConstants.currencySymbol})',
+            prefixIcon: Icons.currency_rupee,
             hintText: '0.00',
             keyboardType: TextInputType.number,
             validator: (value) {
@@ -386,8 +387,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
   Widget _buildTransactionsList() {
     final transactions = [
       {
-        'title': 'Transfer to John Doe',
-        'amount': '-\$500.00',
+        'title': 'Transfer to Rajesh Kumar',
+        'amount': -50000.0,
         'date': 'Today, 2:30 PM',
         'type': 'sent',
         'icon': Icons.arrow_upward,
@@ -395,7 +396,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       },
       {
         'title': 'Salary Deposit',
-        'amount': '+\$3,200.00',
+        'subtitle': 'TCS Limited',
+        'amount': 320000.0,
         'date': 'Yesterday, 9:00 AM',
         'type': 'received',
         'icon': Icons.arrow_downward,
@@ -403,15 +405,17 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       },
       {
         'title': 'Online Payment',
-        'amount': '-\$89.99',
+        'subtitle': 'Amazon India',
+        'amount': -8999.0,
         'date': 'Dec 8, 2024',
         'type': 'sent',
         'icon': Icons.arrow_upward,
         'color': AppTheme.errorColor,
       },
       {
-        'title': 'Refund',
-        'amount': '+\$25.00',
+        'title': 'UPI Refund',
+        'subtitle': 'Swiggy',
+        'amount': 2500.0,
         'date': 'Dec 7, 2024',
         'type': 'received',
         'icon': Icons.arrow_downward,
@@ -425,6 +429,9 @@ class _TransactionsScreenState extends State<TransactionsScreen>
       itemCount: transactions.length,
       itemBuilder: (context, index) {
         final transaction = transactions[index];
+        final amount = transaction['amount'] as double;
+        final isCredit = amount > 0;
+        
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
@@ -467,7 +474,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      transaction['date'] as String,
+                      transaction['subtitle'] as String? ?? transaction['date'] as String,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppTheme.textSecondary,
                       ),
@@ -476,7 +483,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
                 ),
               ),
               Text(
-                transaction['amount'] as String,
+                '${isCredit ? '+' : ''}${AppConstants.currencySymbol}${_formatIndianCurrency(amount.abs())}',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: transaction['color'] as Color,
@@ -491,6 +498,8 @@ class _TransactionsScreenState extends State<TransactionsScreen>
 
   void _handleTransfer() {
     if (_formKey.currentState?.validate() ?? false) {
+      final amount = double.tryParse(_amountController.text) ?? 0.0;
+      
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
@@ -500,7 +509,7 @@ class _TransactionsScreenState extends State<TransactionsScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Recipient: ${_recipientController.text}'),
-              Text('Amount: \$${_amountController.text}'),
+              Text('Amount: ${AppConstants.currencySymbol}${_formatIndianCurrency(amount)}'),
               if (_descriptionController.text.isNotEmpty)
                 Text('Description: ${_descriptionController.text}'),
             ],
@@ -555,5 +564,18 @@ class _TransactionsScreenState extends State<TransactionsScreen>
     _recipientController.clear();
     _amountController.clear();
     _descriptionController.clear();
+  }
+  
+  String _formatIndianCurrency(double amount) {
+    // Format number in Indian style (lakhs, crores)
+    if (amount >= 10000000) {
+      return '${(amount / 10000000).toStringAsFixed(2)} Cr';
+    } else if (amount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(2)} L';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(2)} K';
+    } else {
+      return amount.toStringAsFixed(2);
+    }
   }
 }

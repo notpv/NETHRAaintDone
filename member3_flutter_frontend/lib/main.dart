@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'core/themes/app_theme.dart';
 import 'core/services/behavioral_service.dart';
 import 'core/services/api_service.dart';
-import 'core/services/trust_service.dart';
+import 'core/services/firebase_service.dart';
 import 'features/authentication/screens/login_screen.dart';
 import 'features/dashboard/screens/dashboard_screen.dart';
 import 'features/trust_monitor/providers/trust_provider.dart';
 import 'features/authentication/providers/auth_provider.dart';
 import 'features/personalization/providers/personalization_provider.dart';
 import 'core/services/personalization_service.dart';
+import 'shared/widgets/firebase_notification_listener.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,28 +36,30 @@ class NethraBankingApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        // Core services
+        Provider(create: (_) => ApiService()),
+        Provider(create: (_) => FirebaseService()),
+        Provider(create: (_) => PersonalizationService()),
+        
+        // Authentication provider
+        ChangeNotifierProvider(
+          create: (context) => AuthProvider(),
+        ),
+        
+        // Trust provider with dependencies
         ChangeNotifierProxyProvider<AuthProvider, TrustProvider>(
           create: (context) => TrustProvider(),
           update: (context, authProvider, previous) => 
             TrustProvider(authProvider: authProvider),
         ),
-        Provider(create: (_) => PersonalizationService()),
+        
+        // Personalization provider
         ChangeNotifierProxyProvider<PersonalizationService, PersonalizationProvider>(
           create: (context) => PersonalizationProvider(
             Provider.of<PersonalizationService>(context, listen: false),
           ),
           update: (context, personalizationService, previous) => 
             PersonalizationProvider(personalizationService),
-        ),
-        Provider(create: (_) => BehavioralService()),
-        ProxyProvider<BehavioralService, TrustService>(
-          create: (context) => TrustService(
-            Provider.of<BehavioralService>(context, listen: false),
-            ApiService(),
-          ),
-          update: (context, behavioralService, previous) => 
-            TrustService(behavioralService, ApiService()),
         ),
       ],
       child: Consumer<AuthProvider>(
@@ -66,21 +68,21 @@ class NethraBankingApp extends StatelessWidget {
             title: 'NETHRA Banking',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
-            home: FutureBuilder(
-              future: authProvider.checkAuthStatus(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Scaffold(
-                    body: Center(
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
-                
-                return authProvider.isAuthenticated
-                    ? const DashboardScreen()
-                    : const LoginScreen();
-              },
+            home: FirebaseNotificationListener(
+              child: FutureBuilder(
+                future: authProvider.checkAuthStatus(),
+                builder: (context, snapshot) {
+                  // Show loading screen while checking auth status
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const NethraSplashScreen();
+                  }
+                  
+                  // Navigate based on authentication status
+                  return authProvider.isAuthenticated
+                      ? const DashboardScreen()
+                      : const LoginScreen();
+                },
+              ),
             ),
           );
         },
