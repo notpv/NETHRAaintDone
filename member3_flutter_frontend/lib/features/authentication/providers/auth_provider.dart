@@ -33,6 +33,7 @@ class AuthProvider with ChangeNotifier {
   }
   
   Future<void> checkAuthStatus() async {
+   // Quick local check first
     final prefs = await SharedPreferences.getInstance();
     _isAuthenticated = prefs.getBool('isAuthenticated') ?? false;
     _userId = prefs.getString('userId');
@@ -41,18 +42,15 @@ class AuthProvider with ChangeNotifier {
     _accessToken = prefs.getString('accessToken');
     _currentSessionToken = prefs.getString('currentSessionToken');
     
+   // Notify listeners immediately with local data
+   notifyListeners();
+   
     if (_accessToken != null) {
       _apiService.setAuthToken(_accessToken!);
       
-      // Try to validate token with backend, but don't fail if backend is down
+     // Validate token with backend in background (non-blocking)
       try {
-        final isValid = await _apiService.validateToken();
-        if (!isValid) {
-          await logout();
-        } else {
-          // Create new session if authenticated
-          await _createUserSession();
-        }
+       _validateTokenInBackground();
       } catch (e) {
         // Backend might be down, keep user logged in for demo
         if (kDebugMode) {
@@ -60,10 +58,27 @@ class AuthProvider with ChangeNotifier {
         }
       }
     }
-    
-    notifyListeners();
   }
   
+ Future<void> _validateTokenInBackground() async {
+   try {
+     // Add timeout to prevent hanging
+     final isValid = await _apiService.validateToken()
+         .timeout(const Duration(seconds: 3));
+     
+     if (!isValid) {
+       await logout();
+     } else {
+       // Create new session if authenticated
+       await _createUserSession();
+     }
+   } catch (e) {
+     if (kDebugMode) {
+       print('⚠️ Background token validation failed: $e');
+     }
+     // Keep user logged in for demo mode
+   }
+ }
   Future<bool> register(String username, String email, String password) async {
     _isLoading = true;
     _errorMessage = null;

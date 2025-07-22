@@ -32,7 +32,7 @@ class ApiService {
           'username': username,
           'password': password,
         },
-      );
+     ).timeout(const Duration(seconds: 10)); // Add timeout
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -81,7 +81,7 @@ class ApiService {
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.authEndpoint}/validate-token'),
         headers: _headers,
-      );
+     ).timeout(const Duration(seconds: 5)); // Add timeout
 
       return response.statusCode == 200;
     } catch (e) {

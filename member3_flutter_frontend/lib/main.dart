@@ -70,25 +70,15 @@ class NethraBankingApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             home: FirebaseNotificationListener(
-              child: FutureBuilder<void>(
-                future: _initializeApp(authProvider),
-                builder: (context, snapshot) {
-                  // Show loading screen while checking auth status
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const NethraSplashScreen();
-                  }
-                  
-                  // Handle initialization errors
-                  if (snapshot.hasError) {
-                    return const LoginScreen(); // Fallback to login on error
-                  }
-                  
-                  // Navigate based on authentication status
-                  return authProvider.isAuthenticated
-                      ? const DashboardScreen()
-                      : const LoginScreen();
-                },
-              ),
+             // Initialize in background without blocking UI
+             WidgetsBinding.instance.addPostFrameCallback((_) {
+               _initializeAppInBackground(authProvider);
+             });
+             
+             // Show UI immediately based on current auth status
+             return authProvider.isAuthenticated
+                 ? const DashboardScreen()
+                 : const LoginScreen();
             ),
           );
         },
@@ -98,7 +88,8 @@ class NethraBankingApp extends StatelessWidget {
   
   Future<void> _initializeApp(AuthProvider authProvider) async {
     try {
-      await authProvider.checkAuthStatus();
+     // Initialize without blocking UI
+     authProvider.checkAuthStatus();
     } catch (e) {
       // Log error but don't crash the app
       if (kDebugMode) {
@@ -157,3 +148,4 @@ class NethraSplashScreen extends StatelessWidget {
     );
   }
 }
+ void _initializeAppInBackground(AuthProvider authProvider) async {
