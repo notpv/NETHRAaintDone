@@ -300,28 +300,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Map<String, dynamic> _getUserTypeInfo(String userType) {
     switch (userType) {
-      case 'low_threat':
+      case 'user1_low_threat':
         return {
-          'name': 'Sarah Thompson',
-          'description': 'Normal User - Consistent Behavior',
+          'name': 'User 1 - Sarah Thompson',
+          'description': 'Low Threat - Smooth Usage',
           'color': AppTheme.successColor,
         };
-      case 'medium_threat':
+      case 'user2_medium_threat':
         return {
-          'name': 'Alex Rodriguez',
-          'description': 'Moderate Risk - Variable Behavior',
+          'name': 'User 2 - Alex Rodriguez',
+          'description': 'Medium Threat - Slight Anomaly',
           'color': AppTheme.accentColor,
         };
-      case 'high_threat':
+      case 'user3_high_threat':
         return {
-          'name': 'Unknown User',
-          'description': 'High Risk - Suspicious Activity',
+          'name': 'User 3 - Suspicious Actor',
+          'description': 'High Threat - Mirage Triggered',
           'color': AppTheme.warningColor,
         };
-      case 'critical_threat':
+      case 'user4_critical_threat':
         return {
-          'name': 'Automated Bot',
-          'description': 'Critical Threat - Auto-Logout Soon',
+          'name': 'User 4 - Critical Bot',
+          'description': 'Critical Threat - Auto-Logout',
           'color': AppTheme.errorColor,
         };
       default:

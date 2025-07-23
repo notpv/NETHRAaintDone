@@ -17,6 +17,8 @@ class PersonalizationDemoScreen extends StatefulWidget {
 class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
   int _currentUserProfile = 0;
   bool _showComparison = false;
+  bool _isLearning = false;
+  double _learningProgress = 0.0;
   
   final List<UserProfile> _userProfiles = [
     UserProfile(
@@ -299,22 +301,22 @@ class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
           const SizedBox(height: 20),
           _buildStatusItem(
             'Learning Progress',
-            '${(provider.learningProgress * 100).toInt()}%',
-            provider.learningProgress,
+            '${(_learningProgress * 100).toInt()}%',
+            _learningProgress,
             currentProfile.color,
           ),
           const SizedBox(height: 16),
           _buildStatusItem(
             'Baseline Confidence',
-            '${(provider.baselineConfidence * 100).toInt()}%',
-            provider.baselineConfidence,
+            '${(_learningProgress * 80).toInt()}%',
+            _learningProgress * 0.8,
             currentProfile.color,
           ),
           const SizedBox(height: 16),
           _buildStatusItem(
             'Adaptation Count',
-            '${provider.adaptationCount}',
-            provider.adaptationCount / 100.0,
+            '${(_learningProgress * 50).toInt()}',
+            _learningProgress,
             currentProfile.color,
           ),
         ],

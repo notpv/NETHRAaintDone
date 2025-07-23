@@ -19,6 +19,7 @@ class FirebaseNotificationListener extends StatefulWidget {
 
 class _FirebaseNotificationListenerState extends State<FirebaseNotificationListener> {
   late final FirebaseService _firebaseService;
+  final List<FirebaseNotification> _notifications = [];
   
   @override
   void initState() {
@@ -30,14 +31,20 @@ class _FirebaseNotificationListenerState extends State<FirebaseNotificationListe
   void _listenToNotifications() {
     _firebaseService.notificationStream.listen((notification) {
       if (mounted) {
+        // Store notification for later access
+        setState(() {
+          _notifications.insert(0, notification);
+          // Keep only last 50 notifications
+          if (_notifications.length > 50) {
+            _notifications.removeLast();
+          }
+        });
+        
         // Check if we should suppress notifications during demo mode
         final trustProvider = Provider.of<TrustProvider>(context, listen: false);
         
-        // Only show notifications for normal users or critical threats
-        if (trustProvider.currentUserType == 'normal' || 
-            notification.priority == NotificationPriority.critical) {
-          _showNotification(notification);
-        }
+        // Suppress all popup notifications - only store them
+        // Users can access via notifications icon
       }
     });
   }
@@ -225,6 +232,189 @@ class _FirebaseNotificationListenerState extends State<FirebaseNotificationListe
   
   @override
   Widget build(BuildContext context) {
-    return widget.child;
+    return Consumer<TrustProvider>(
+      builder: (context, trustProvider, child) {
+        return Stack(
+          children: [
+            widget.child,
+            // Notification access overlay
+            Positioned(
+              top: 50,
+              right: 16,
+              child: _buildNotificationAccess(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _buildNotificationAccess() {
+    if (_notifications.isEmpty) return const SizedBox.shrink();
+    
+    return GestureDetector(
+      onTap: _showNotificationCenter,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.notifications,
+              color: Colors.white,
+              size: 16,
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppTheme.errorColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '${_notifications.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  void _showNotificationCenter() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: AppTheme.surfaceColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.notifications,
+                    color: AppTheme.primaryColor,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Security Notifications',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: () {
+                      setState(() {
+                        _notifications.clear();
+                      });
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.clear_all),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: _notifications.length,
+                itemBuilder: (context, index) {
+                  final notification = _notifications[index];
+                  return _buildNotificationItem(notification);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildNotificationItem(FirebaseNotification notification) {
+    final color = _getNotificationColor(notification.type);
+    final icon = _getNotificationIcon(notification.type);
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  notification.title,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                  ),
+                ),
+              ),
+              Text(
+                _formatTime(notification.timestamp),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            notification.body,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+  
+  String _formatTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+    
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
   }
 }

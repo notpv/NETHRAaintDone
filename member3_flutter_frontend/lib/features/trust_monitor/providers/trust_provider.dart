@@ -91,19 +91,19 @@ class TrustProvider with ChangeNotifier {
     _demoSessionCount = 0;
     
     switch (userType) {
-      case 'low_threat':
+      case 'user1_low_threat':
         _trustScore = 85.0;
         _trustLevel = TrustLevel.high;
         _riskFactors = [];
         _shouldShowMirage = false;
         break;
-      case 'medium_threat':
+      case 'user2_medium_threat':
         _trustScore = 65.0;
         _trustLevel = TrustLevel.medium;
         _riskFactors = ['Slight behavioral variation detected'];
         _shouldShowMirage = false;
         break;
-      case 'high_threat':
+      case 'user3_high_threat':
         _trustScore = 25.0;
         _trustLevel = TrustLevel.critical;
         _riskFactors = [
@@ -113,7 +113,7 @@ class TrustProvider with ChangeNotifier {
         ];
         _shouldShowMirage = true;
         break;
-      case 'critical_threat':
+      case 'user4_critical_threat':
         _trustScore = 5.0;
         _trustLevel = TrustLevel.critical;
         _riskFactors = [
@@ -169,7 +169,7 @@ class TrustProvider with ChangeNotifier {
     _demoSessionCount++;
     
     switch (_currentUserType) {
-      case 'low_threat':
+      case 'user1_low_threat':
         // Gradual improvement in trust score
         _trustScore = (85.0 + (_demoSessionCount * 0.5)).clamp(85.0, 95.0);
         _trustLevel = TrustLevel.high;
@@ -177,7 +177,7 @@ class TrustProvider with ChangeNotifier {
         _shouldShowMirage = false;
         break;
         
-      case 'medium_threat':
+      case 'user2_medium_threat':
         // Fluctuating trust score
         final variation = (_demoSessionCount % 4 - 2) * 5.0;
         _trustScore = (65.0 + variation).clamp(55.0, 75.0);
@@ -186,7 +186,7 @@ class TrustProvider with ChangeNotifier {
         _shouldShowMirage = false;
         break;
         
-      case 'high_threat':
+      case 'user3_high_threat':
         // Declining trust score
         _trustScore = (35.0 - (_demoSessionCount * 2.0)).clamp(15.0, 35.0);
         _trustLevel = TrustLevel.critical;
@@ -198,7 +198,7 @@ class TrustProvider with ChangeNotifier {
         _shouldShowMirage = true;
         break;
         
-      case 'critical_threat':
+      case 'user4_critical_threat':
         // Immediate critical threat - auto logout after 5 updates
         if (_demoSessionCount >= 5) {
           _handleAutoLogout();

@@ -66,7 +66,13 @@ class RecentTransactions extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () {
-                  // Navigate to full transaction history
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Full transaction history coming soon!'),
+                      backgroundColor: AppTheme.primaryColor,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
                 },
                 child: Text(
                   'View All',

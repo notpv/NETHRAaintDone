@@ -87,7 +87,16 @@ class QuickActions extends StatelessWidget {
     VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: onTap ?? () {
+        // Default action for unimplemented buttons
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$label feature coming soon!'),
+            backgroundColor: color,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
       child: Column(
         children: [
           Container(

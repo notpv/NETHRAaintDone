@@ -62,6 +62,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 24),
                   _buildLoginButton(),
                   const SizedBox(height: 16),
+                  _buildForgotPasswordButton(),
+                  const SizedBox(height: 16),
                   _buildRegisterButton(),
                   const SizedBox(height: 24),
                   _buildDemoButton(),
@@ -207,6 +209,63 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     ).animate().fadeIn(delay: 1200.ms);
+  }
+  
+  Widget _buildForgotPasswordButton() {
+    return TextButton(
+      onPressed: () {
+        _showForgotPasswordDialog();
+      },
+      child: Text(
+        'Forgot Password?',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: AppTheme.textSecondary,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ).animate().fadeIn(delay: 1150.ms);
+  }
+  
+  void _showForgotPasswordDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter your email address to receive password reset instructions.'),
+            const SizedBox(height: 16),
+            TextField(
+              decoration: const InputDecoration(
+                labelText: 'Email Address',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.email),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Password reset instructions sent to your email!'),
+                  backgroundColor: AppTheme.successColor,
+                ),
+              );
+            },
+            child: const Text('Send Reset Link'),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDemoButton() {
