@@ -83,13 +83,13 @@ class _MirageScreenState extends State<MirageScreen>
   
   Map<String, dynamic> _generateFallbackFakeData() {
     return {
-      'account_balance': 150000.00,
-      'available_balance': 138000.00,
+      'account_balance': 5500000.00, // ₹55 Lakhs - inflated for mirage
+      'available_balance': 5200000.00,
       'recent_transactions': [
         {
           'id': 'TXN_FAKE_001',
           'type': 'Business Revenue',
-          'amount': 50000,
+          'amount': 500000, // ₹5 Lakhs
           'direction': 'credit',
           'timestamp': DateTime.now().subtract(const Duration(hours: 2)).toIso8601String(),
           'description': 'Large Business Payment - Mirage Generated',
@@ -97,7 +97,7 @@ class _MirageScreenState extends State<MirageScreen>
         {
           'id': 'TXN_FAKE_002',
           'type': 'Investment Return',
-          'amount': 25000,
+          'amount': 250000, // ₹2.5 Lakhs
           'direction': 'credit',
           'timestamp': DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
           'description': 'Stock Portfolio Gains - Mirage Generated',
@@ -260,7 +260,7 @@ class _MirageScreenState extends State<MirageScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '\$${balance.toStringAsFixed(2)}',
+                    '₹${_formatIndianCurrency(balance)}',
                     style: Theme.of(context).textTheme.displayMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
@@ -548,7 +548,7 @@ class _MirageScreenState extends State<MirageScreen>
             )
           else
             Text(
-              transaction['amount'] as String,
+              '₹${_formatIndianCurrency(balance)}',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: AppTheme.errorColor,
@@ -608,7 +608,7 @@ class _MirageScreenState extends State<MirageScreen>
             ),
           ),
           Text(
-            '${isCredit ? '+' : '-'} \$${amount.toStringAsFixed(2)}',
+            '${isCredit ? '+' : '-'} ₹${_formatIndianCurrency(amount.toDouble())}',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.bold,
               color: isCredit ? AppTheme.successColor : AppTheme.errorColor,
@@ -617,6 +617,19 @@ class _MirageScreenState extends State<MirageScreen>
         ],
       ),
     );
+  }
+  
+  String _formatIndianCurrency(double amount) {
+    // Format number in Indian style (lakhs, crores)
+    if (amount >= 10000000) {
+      return '${(amount / 10000000).toStringAsFixed(2)} Cr';
+    } else if (amount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(2)} L';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(2)} K';
+    } else {
+      return amount.toStringAsFixed(2);
+    }
   }
 
   Widget _buildFakeErrorMessage() {

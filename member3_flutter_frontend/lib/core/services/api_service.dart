@@ -46,10 +46,9 @@ class ApiService {
           'password': password,
           'grant_type': 'password', // OAuth2 standard field
         },
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 10));
 
       print('Login response status: ${response.statusCode}');
-      print('Login response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -58,13 +57,18 @@ class ApiService {
           print('✅ Login successful, token set');
         }
         return data;
+      } else if (response.statusCode == 429) {
+        throw Exception('Too many requests. Please wait a moment and try again.');
       } else {
         final errorData = jsonDecode(response.body);
         throw Exception(errorData['detail'] ?? 'Login failed: ${response.statusCode}');
       }
     } catch (e) {
       print('❌ Login error: $e');
-      throw Exception('Network error during login: $e');
+      if (e.toString().contains('timeout')) {
+        throw Exception('Connection timeout. Please check your network and try again.');
+      }
+      throw Exception('Login failed: ${e.toString().replaceAll('Exception: ', '')}');
     }
   }
 
@@ -136,28 +140,42 @@ class ApiService {
   // Trust Score APIs
   Future<Map<String, dynamic>> predictTrustScore(Map<String, dynamic> behavioralData) async {
     try {
-      print('Sending trust prediction request...');
-      print('Behavioral data: $behavioralData');
+      if (kDebugMode) {
+        print('Sending trust prediction request...');
+      }
       
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.trustEndpoint}/predict-trust'),
         headers: _headers,
         body: jsonEncode(behavioralData),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 8));
 
-      print('Trust prediction response: ${response.statusCode}');
+      if (kDebugMode) {
+        print('Trust prediction response: ${response.statusCode}');
+      }
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
-        print('✅ Trust prediction successful: ${result['trust_score']}');
+        if (kDebugMode) {
+          print('✅ Trust prediction successful: ${result['trust_score']}');
+        }
         return result;
+      } else if (response.statusCode == 429) {
+        throw Exception('Rate limit exceeded. Slowing down requests.');
       } else {
-        print('❌ Trust prediction failed: ${response.statusCode}');
+        if (kDebugMode) {
+          print('❌ Trust prediction failed: ${response.statusCode}');
+        }
         throw Exception('Trust prediction failed: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Trust prediction error: $e');
-      throw Exception('Network error during trust prediction: $e');
+      if (kDebugMode) {
+        print('❌ Trust prediction error: $e');
+      }
+      if (e.toString().contains('Rate limit')) {
+        throw Exception('Rate limit exceeded');
+      }
+      throw Exception('Trust prediction failed: ${e.toString().replaceAll('Exception: ', '')}');
     }
   }
 
@@ -200,7 +218,9 @@ class ApiService {
     if (_disposed) throw Exception('ApiService disposed');
     
     try {
-      print('Creating session with device info: $deviceInfo');
+      if (kDebugMode) {
+        print('Creating session with device info: $deviceInfo');
+      }
       
       final response = await http.post(
         Uri.parse('$baseUrl${AppConstants.sessionEndpoint}/create'),
@@ -208,19 +228,25 @@ class ApiService {
         body: jsonEncode({
           'device_info': deviceInfo ?? {},
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 8));
 
-      print('Session creation response: ${response.statusCode}');
+      if (kDebugMode) {
+        print('Session creation response: ${response.statusCode}');
+      }
       
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
-        print('✅ Session created: ${result['session_token']}');
+        if (kDebugMode) {
+          print('✅ Session created: ${result['session_token']}');
+        }
         return result;
       } else {
         throw Exception('Session creation failed: ${response.statusCode}');
       }
     } catch (e) {
-      print('❌ Session creation error: $e');
+      if (kDebugMode) {
+        print('❌ Session creation error: $e');
+      }
       throw Exception('Network error during session creation: $e');
     }
   }

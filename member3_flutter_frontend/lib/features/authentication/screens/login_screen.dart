@@ -227,6 +227,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
   
   void _showForgotPasswordDialog() {
+    final TextEditingController emailController = TextEditingController();
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -237,6 +239,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const Text('Enter your email address to receive password reset instructions.'),
             const SizedBox(height: 16),
             TextField(
+              controller: emailController,
               decoration: const InputDecoration(
                 labelText: 'Email Address',
                 border: OutlineInputBorder(),
@@ -253,13 +256,26 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           ElevatedButton(
             onPressed: () {
+              final email = emailController.text.trim();
+              if (email.isEmpty || !email.contains('@')) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please enter a valid email address'),
+                    backgroundColor: AppTheme.errorColor,
+                  ),
+                );
+                return;
+              }
+              
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Password reset instructions sent to your email!'),
+                SnackBar(
+                  content: Text('Password reset instructions sent to $email'),
                   backgroundColor: AppTheme.successColor,
+                  duration: const Duration(seconds: 3),
                 ),
               );
+              emailController.dispose();
             },
             child: const Text('Send Reset Link'),
           ),

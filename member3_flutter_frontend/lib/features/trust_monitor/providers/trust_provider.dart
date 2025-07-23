@@ -311,8 +311,39 @@ class TrustProvider with ChangeNotifier {
   
   Future<void> _handleFirebaseNotifications(double trustScore, bool mirageActivated, Map<String, dynamic> response) async {
     try {
-      // Suppress notifications during demo mode to avoid UI interference
-      if (_currentUserType != 'normal') return;
+      // Send email alerts for mirage activation (User 3 & 4)
+      if (mirageActivated && _authProvider?.email != null) {
+        final emailService = EmailAlertService();
+        final userId = int.tryParse(_authProvider!.userId ?? '0') ?? 0;
+        
+        await emailService.sendMirageActivationAlert(
+          userEmail: _authProvider!.email!,
+          userId: userId,
+          trustScore: trustScore,
+          intensity: response['mirage_intensity'] ?? 'moderate',
+        );
+      }
+      
+      // Log audit events
+      final auditService = AuditService();
+      final userId = int.tryParse(_authProvider?.userId ?? '0') ?? 0;
+      
+      auditService.logTrustScoreUpdate(
+        userId: userId,
+        oldScore: _trustScore,
+        newScore: trustScore,
+        behavioralData: response,
+        sessionId: _currentSessionToken,
+      );
+      
+      if (mirageActivated) {
+        auditService.logMirageActivation(
+          userId: userId,
+          trustScore: trustScore,
+          intensity: response['mirage_intensity'] ?? 'moderate',
+          sessionId: _currentSessionToken,
+        );
+      }
       
       // Send trust score alert if low
       if (trustScore < 40) {
@@ -381,6 +412,17 @@ class TrustProvider with ChangeNotifier {
       _retryCount++;
       if (kDebugMode) {
         print('❌ Backend trust update failed (attempt $_retryCount): $e');
+      }
+      
+      // Handle rate limiting gracefully
+      if (e.toString().contains('Rate limit')) {
+        // Slow down requests
+        _trustUpdateTimer?.cancel();
+        _trustUpdateTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+          _updateTrustWithBackend();
+          _simulateUserBehavior();
+        });
+        return;
       }
       
       // If max retries reached, use fallback behavior

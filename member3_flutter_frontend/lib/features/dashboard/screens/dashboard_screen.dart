@@ -59,7 +59,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _setupCriticalThreatHandling(TrustProvider trustProvider, AuthProvider authProvider) {
     // Listen for critical threat user type
     trustProvider.addListener(() {
-      if (trustProvider.currentUserType == 'critical_threat' && 
+      if (trustProvider.currentUserType == 'user4_critical_threat' && 
           trustProvider.isMonitoring &&
           _criticalThreatTimer == null) {
         
@@ -112,6 +112,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _criticalThreatTimer?.cancel();
     _criticalThreatTimer = null;
     
+    // Log audit event
+    final auditService = Provider.of<AuditService>(context, listen: false);
+    final userId = int.tryParse(authProvider.userId ?? '0') ?? 0;
+    auditService.logCriticalThreatLogout(
+      userId: userId,
+      trustScore: 5.0,
+      reason: 'Automated behavior detected',
+      sessionId: 'demo_session',
+    );
+    
+    // Send email alert
+    final emailService = Provider.of<EmailAlertService>(context, listen: false);
+    emailService.sendCriticalThreatAlert(
+      userEmail: authProvider.email ?? 'demo@nethra.com',
+      userId: userId,
+      trustScore: 5.0,
+      reason: 'Automated behavior detected',
+    );
+    
     // Stop monitoring
     final trustProvider = Provider.of<TrustProvider>(context, listen: false);
     trustProvider.stopMonitoring();
@@ -146,36 +165,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
         // Don't show success message for demo users to avoid UI interference
         final trustProvider = Provider.of<TrustProvider>(context, listen: false);
         if (trustProvider.currentUserType == 'normal') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text('Connected to NETHRA backend'),
-                ],
-              ),
-              backgroundColor: AppTheme.successColor,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          // Suppress connection success message to reduce UI noise
+          if (kDebugMode) {
+            print('✅ Connected to NETHRA backend');
+          }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.warning, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(child: Text('Backend connection issue: Using demo mode')),
-              ],
+        // Only show connection issues for non-demo users
+        final trustProvider = Provider.of<TrustProvider>(context, listen: false);
+        if (trustProvider.currentUserType == 'normal') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('Backend connection issue: Using demo mode')),
+                ],
+              ),
+              backgroundColor: AppTheme.warningColor,
+              duration: const Duration(seconds: 2),
             ),
-            backgroundColor: AppTheme.warningColor,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+          );
+        }
       }
     }
   }
@@ -725,8 +739,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: const Text('Help & Support'),
               onTap: () {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Help feature coming soon!')),
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Row(
+                      children: [
+                        Icon(Icons.help, color: AppTheme.primaryColor),
+                        SizedBox(width: 12),
+                        Text('Help & Support'),
+                      ],
+                    ),
+                    content: const Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Need help with NETHRA Banking?'),
+                        SizedBox(height: 16),
+                        Text(
+                          'Contact our support team:\n• Email: support@nethra.com\n• Phone: 1-800-NETHRA\n• Live Chat: Available 24/7',
+                          style: TextStyle(fontSize: 14),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Got it'),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),

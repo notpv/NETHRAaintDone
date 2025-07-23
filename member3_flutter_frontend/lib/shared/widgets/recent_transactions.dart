@@ -66,11 +66,33 @@ class RecentTransactions extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Full transaction history coming soon!'),
-                      backgroundColor: AppTheme.primaryColor,
-                      duration: Duration(seconds: 2),
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Row(
+                        children: [
+                          Icon(Icons.history, color: AppTheme.primaryColor),
+                          SizedBox(width: 12),
+                          Text('Transaction History'),
+                        ],
+                      ),
+                      content: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Full transaction history feature is coming soon!'),
+                          SizedBox(height: 16),
+                          Text(
+                            'This would show your complete transaction history with filtering and export options.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Got it'),
+                        ),
+                      ],
                     ),
                   );
                 },

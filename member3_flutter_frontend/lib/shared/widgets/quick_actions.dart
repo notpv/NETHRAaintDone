@@ -87,16 +87,7 @@ class QuickActions extends StatelessWidget {
     VoidCallback? onTap,
   }) {
     return GestureDetector(
-      onTap: onTap ?? () {
-        // Default action for unimplemented buttons
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$label feature coming soon!'),
-            backgroundColor: color,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
+      onTap: onTap ?? () => _showPlaceholderAction(context, label, color),
       child: Column(
         children: [
           Container(
@@ -122,6 +113,45 @@ class QuickActions extends StatelessWidget {
               color: AppTheme.textSecondary,
               fontWeight: FontWeight.w500,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showPlaceholderAction(BuildContext context, String label, Color color) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.construction, color: color),
+            const SizedBox(width: 12),
+            Text('$label Feature'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('The $label feature is coming soon!'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'This would normally take you to the $label screen with full functionality.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
           ),
         ],
       ),

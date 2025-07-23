@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'dart:async';
 import '../../../core/themes/app_theme.dart';
-import '../../../core/services/personalization_service.dart';
 import '../../../shared/widgets/behavioral_wrapper.dart';
 import '../../../shared/widgets/custom_button.dart';
-import '../providers/personalization_provider.dart';
 
 class PersonalizationDemoScreen extends StatefulWidget {
   const PersonalizationDemoScreen({super.key});
@@ -17,8 +16,9 @@ class PersonalizationDemoScreen extends StatefulWidget {
 class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
   int _currentUserProfile = 0;
   bool _showComparison = false;
-  bool _isLearning = false;
   double _learningProgress = 0.0;
+  double _standardTrustScore = 45.0;
+  double _personalizedTrustScore = 75.0;
   
   final List<UserProfile> _userProfiles = [
     UserProfile(
@@ -62,30 +62,26 @@ class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
             ),
           ],
         ),
-        body: Consumer<PersonalizationProvider>(
-          builder: (context, provider, child) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildDemoHeader().animate().fadeIn(delay: 100.ms),
-                  const SizedBox(height: 24),
-                  _buildUserProfileSelector().animate().slideX(delay: 300.ms),
-                  const SizedBox(height: 24),
-                  _buildPersonalizationStatus(provider).animate().slideY(delay: 500.ms),
-                  const SizedBox(height: 24),
-                  _buildBehaviorComparison().animate().fadeIn(delay: 700.ms),
-                  const SizedBox(height: 24),
-                  _buildDemoActions().animate().slideY(delay: 900.ms),
-                  if (_showComparison) ...[
-                    const SizedBox(height: 24),
-                    _buildComparisonResults(provider).animate().fadeIn(delay: 1100.ms),
-                  ],
-                ],
-              ),
-            );
-          },
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildDemoHeader().animate().fadeIn(delay: 100.ms),
+              const SizedBox(height: 24),
+              _buildUserProfileSelector().animate().slideX(delay: 300.ms),
+              const SizedBox(height: 24),
+              _buildPersonalizationStatus().animate().slideY(delay: 500.ms),
+              const SizedBox(height: 24),
+              _buildBehaviorComparison().animate().fadeIn(delay: 700.ms),
+              const SizedBox(height: 24),
+              _buildDemoActions().animate().slideY(delay: 900.ms),
+              if (_showComparison) ...[
+                const SizedBox(height: 24),
+                _buildComparisonResults().animate().fadeIn(delay: 1100.ms),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -263,7 +259,7 @@ class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
     );
   }
 
-  Widget _buildPersonalizationStatus(PersonalizationProvider provider) {
+  Widget _buildPersonalizationStatus() {
     final currentProfile = _userProfiles[_currentUserProfile];
     
     return Container(
@@ -509,7 +505,7 @@ class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
     );
   }
 
-  Widget _buildComparisonResults(PersonalizationProvider provider) {
+  Widget _buildComparisonResults() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -535,14 +531,14 @@ class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
           const SizedBox(height: 20),
           _buildComparisonCard(
             'Standard Security',
-            provider.standardTrustScore,
+            _standardTrustScore,
             'One-size-fits-all approach',
             AppTheme.errorColor,
           ),
           const SizedBox(height: 16),
           _buildComparisonCard(
             'Personalized Security',
-            provider.personalizedTrustScore,
+            _personalizedTrustScore,
             'Adapted to user\'s unique patterns',
             AppTheme.successColor,
           ),
@@ -634,32 +630,76 @@ class _PersonalizationDemoScreenState extends State<PersonalizationDemoScreen> {
     setState(() {
       _currentUserProfile = index;
       _showComparison = false;
+      _learningProgress = 0.0;
     });
-    
-    final provider = Provider.of<PersonalizationProvider>(context, listen: false);
-    provider.setCurrentProfile(_userProfiles[index]);
   }
 
   void _runComparison() {
-    final provider = Provider.of<PersonalizationProvider>(context, listen: false);
-    provider.runPersonalizationComparison(_userProfiles[_currentUserProfile]);
+    final currentProfile = _userProfiles[_currentUserProfile];
     
+    // Simulate comparison based on user profile
     setState(() {
+      // Standard security gives same score regardless of user
+      _standardTrustScore = 45.0;
+      
+      // Personalized security adapts to user's natural patterns
+      switch (currentProfile.name) {
+        case 'Sarah (Light Touch)':
+          _personalizedTrustScore = 85.0; // High score for gentle user
+          break;
+        case 'Mike (Heavy Touch)':
+          _personalizedTrustScore = 78.0; // Good score for firm user
+          break;
+        case 'Alex (Variable)':
+          _personalizedTrustScore = 65.0; // Moderate score for inconsistent user
+          break;
+      }
+      
       _showComparison = true;
     });
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Comparison completed for ${currentProfile.name}'),
+        backgroundColor: AppTheme.successColor,
+      ),
+    );
   }
 
   void _simulateLearning() {
-    final provider = Provider.of<PersonalizationProvider>(context, listen: false);
-    provider.simulateLearningPhase(_userProfiles[_currentUserProfile]);
+    setState(() {
+      _learningProgress = 0.0;
+    });
+    
+    // Animate learning progress
+    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      setState(() {
+        _learningProgress += 0.1;
+      });
+      
+      if (_learningProgress >= 1.0) {
+        timer.cancel();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Learning simulation completed!'),
+            backgroundColor: AppTheme.successColor,
+          ),
+        );
+      }
+    });
   }
 
   void _resetDemo() {
-    final provider = Provider.of<PersonalizationProvider>(context, listen: false);
-    provider.resetPersonalization();
-    
     setState(() {
       _showComparison = false;
+      _learningProgress = 0.0;
+      _standardTrustScore = 45.0;
+      _personalizedTrustScore = 75.0;
     });
   }
 }
