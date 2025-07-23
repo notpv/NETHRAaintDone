@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../../../core/themes/app_theme.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/behavioral_wrapper.dart';
 import '../../trust_monitor/providers/trust_provider.dart';
 import '../../authentication/providers/auth_provider.dart';
@@ -186,7 +187,7 @@ class _MirageScreenState extends State<MirageScreen>
                   ),
                 ),
                 const Spacer(),
-                Icon(
+                const Icon(
                   Icons.notifications_outlined,
                   color: AppTheme.textSecondary,
                 ),
@@ -297,7 +298,7 @@ class _MirageScreenState extends State<MirageScreen>
                     children: [
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.savings,
                             color: Colors.white,
                             size: 16,
@@ -336,7 +337,7 @@ class _MirageScreenState extends State<MirageScreen>
                     children: [
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.credit_card,
                             color: Colors.white,
                             size: 16,
@@ -376,7 +377,7 @@ class _MirageScreenState extends State<MirageScreen>
             ),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.security,
                   color: Colors.white,
                   size: 20,
@@ -424,22 +425,6 @@ class _MirageScreenState extends State<MirageScreen>
       ),
     );
   }
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              const Spacer(),
-              Icon(
-                Icons.refresh,
-                color: Colors.white,
-              ).animate(onPlay: (controller) => controller.repeat())
-                  .rotate(duration: 2.seconds),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildFakeTransactionList() {
     final transactions = _fakeAccountData?['recent_transactions'] as List<dynamic>? ?? [];
@@ -478,9 +463,9 @@ class _MirageScreenState extends State<MirageScreen>
 
   Widget _buildFakeTransactionItem(int index) {
     final fakeTransactions = [
-      {'title': 'Payment Processing...', 'amount': '- \$---.--', 'loading': true},
-      {'title': 'Transfer Failed', 'amount': '- \$500.00', 'loading': false},
-      {'title': 'Deposit Pending', 'amount': '+ \$---.--', 'loading': true},
+      {'title': 'Payment Processing...', 'amount': '- ₹---.--', 'loading': true},
+      {'title': 'Transfer Failed', 'amount': '- ₹500.00', 'loading': false},
+      {'title': 'Deposit Pending', 'amount': '+ ₹---.--', 'loading': true},
     ];
     
     final transaction = fakeTransactions[index];
@@ -538,7 +523,7 @@ class _MirageScreenState extends State<MirageScreen>
             ),
           ),
           if (transaction['loading'] as bool)
-            SizedBox(
+            const SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
@@ -548,7 +533,7 @@ class _MirageScreenState extends State<MirageScreen>
             )
           else
             Text(
-              '₹${_formatIndianCurrency(balance)}',
+              transaction['amount'] as String,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 fontWeight: FontWeight.bold,
                 color: AppTheme.errorColor,
@@ -644,7 +629,7 @@ class _MirageScreenState extends State<MirageScreen>
       ),
       child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.error_outline,
             color: AppTheme.errorColor,
             size: 48,
@@ -686,7 +671,7 @@ class _MirageScreenState extends State<MirageScreen>
             children: [
               Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.security,
                     color: AppTheme.primaryColor,
                     size: 32,
@@ -759,8 +744,8 @@ class _MirageScreenState extends State<MirageScreen>
       },
       {
         'question': 'Enter your favorite color',
-        'widget': TextField(
-          decoration: const InputDecoration(
+        'widget': const TextField(
+          decoration: InputDecoration(
             hintText: 'Enter color name',
             border: OutlineInputBorder(),
           ),
@@ -786,7 +771,7 @@ class _MirageScreenState extends State<MirageScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.arrow_forward,
                     color: AppTheme.primaryColor,
                   ),
@@ -857,8 +842,8 @@ class _MirageScreenState extends State<MirageScreen>
       trustProvider.resetTrust();
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Identity verified. Access restored.'),
+        const SnackBar(
+          content: Text('Identity verified. Access restored.'),
           backgroundColor: AppTheme.successColor,
         ),
       );
